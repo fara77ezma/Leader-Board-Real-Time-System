@@ -16,24 +16,30 @@ services:
     # mount the current directory to /app in the container so changes are reflected without rebuilding
     volumes:
       - .:/app
+    secrets:
+      - passwords 
     ports:
       - "5000:5000"
     depends_on:
       - redis
+      - mysql
     restart: unless-stopped
-  sql-server:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: sql-server
+  mysql:
+    image: mysql:8
+    container_name: mysql
     environment:
-      MSSQL_SA_PASSWORD_FILE: /run/secrets/passwords
-      ACCEPT_EULA: "Y"
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/passwords
+      MYSQL_DATABASE: "leaderboard_db"
     secrets:
       - passwords
     ports:
-      - "1433:1433"
+      - "3306:3306"
     restart: unless-stopped
+    volumes:
+    - mysql_data:/var/lib/mysql
 volumes:
   redis_data:
+  mysql_data:
 
 secrets:
   passwords:
