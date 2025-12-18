@@ -21,8 +21,11 @@ services:
     ports:
       - "5000:5000"
     depends_on:
-      - redis
-      - mysql
+      redis:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+
     restart: unless-stopped
   mysql:
     image: mysql:8
@@ -37,6 +40,12 @@ services:
     restart: unless-stopped
     volumes:
     - mysql_data:/var/lib/mysql
+    # simple healthcheck to ensure mysql is ready to accept connections before python-app starts
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 volumes:
   redis_data:
   mysql_data:
