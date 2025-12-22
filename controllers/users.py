@@ -1,11 +1,23 @@
 import hashlib
 import uuid
-from request import RegisterRequest
-from db.tables import User
+from models.request import LoginRequest, RegisterRequest
+from models.tables import User
 from sqlalchemy.orm import Session
+from passlib.context import CryptContext
 
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto"
+)
 
 def register_user(request: RegisterRequest,db: Session) -> dict:
+    # Check if email or username already exists
+    existing_user = db.query(User).filter(
+        (User.email == request.email) | (User.username == request.username)
+    ).first()
+
+    if existing_user:
+        return {"error": "Email or username already exists."}
     
     new_user = User(
         user_code=str(uuid.uuid4()),
@@ -25,7 +37,24 @@ def register_user(request: RegisterRequest,db: Session) -> dict:
     return {"message": "User registered successfully."}
 
 
-def hash_password(pwd):
-    pwd_bytes = pwd.encode('utf-8')
-    hashed_pwd = hashlib.sha256(pwd_bytes).hexdigest()
-    return hashed_pwd
+def login_user(request: LoginRequest,db: Session):
+    existing_user = db.query(User).filter(
+        (User.email == request.email) | (User.username == request.username)
+    ).first()
+    if not existing_user and request.email:
+        return {"error": "Invalid email."}
+    if not existing_user and request.username:
+        return {"error": "Invalid username."}
+    if not verify_password(request.password, existing_user.password_hash):
+        return {"error": "Incorrect password."}
+    return {"message": "Login successful."}
+    
+
+
+
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
