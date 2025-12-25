@@ -7,11 +7,6 @@ class RegisterRequest(BaseModel):
     password: str
 
 class LoginRequest(BaseModel):
-    email: EmailStr | None = None
-    username: str | None = None
+    username: str
     password: str
-    @model_validator(mode="after")
-    def check_identifier(self):
-        if not self.email and not self.username:
-            raise ValueError("Either email or username must be provided.")
-        return self
+ 
