@@ -2,3 +2,7 @@ passwords.txt
 Dockerfile
 __pycache__/
 requirements.txt
+.env
+test.py
+queries.txt
+token_script.py
