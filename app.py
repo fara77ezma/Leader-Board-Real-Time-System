@@ -1,10 +1,13 @@
 from fastapi import FastAPI
 from models.tables import Base
-from routes import users
+from routes import auth
 from db.db import engine
+from fastapi.security import HTTPBearer
+
 
 app = FastAPI()
 
+security = HTTPBearer()
 
 @app.on_event("startup")
 async def startup():
@@ -17,4 +20,4 @@ def root():
 
 
 
-app.include_router(users.router)
+app.include_router(auth.router)
