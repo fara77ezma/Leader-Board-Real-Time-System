@@ -1,0 +1,32 @@
+name: Tests
+
+on:
+  push:
+    branches: ["**"]  # Adjust branch names as needed
+  pull_request:
+    branches: ["**"]  # Adjust branch names as needed
+
+jobs:
+  test:
+    # github-free Ubuntu runner
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Get code
+      - uses: actions/checkout@v4
+      
+      # 2. Build test environment
+      - name: Build Docker test environment
+        run: docker-compose -f docker-compose.test.yml build
+      
+      # 3. Run tests
+      - name: Run tests
+        run: |
+          docker-compose -f docker-compose.test.yml up \
+            --abort-on-container-exit \
+            --exit-code-from test-runner
+      
+      # 4. Clean up
+      - name: Clean up
+        if: always()
+        run: docker-compose -f docker-compose.test.yml down -v
