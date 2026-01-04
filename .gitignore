@@ -7,5 +7,4 @@ test.py
 queries.txt
 token_script.py
 redis_functions.txt
-docker-compose.test.yml
 .coverage

@@ -17,12 +17,12 @@ jobs:
       
       # 2. Build test environment
       - name: Build Docker test environment
-        run: docker-compose -f docker-compose.test.yml build
+        run: docker compose -f docker-compose.test.yml build
       
       # 3. Run tests
       - name: Run tests
         run: |
-          docker-compose -f docker-compose.test.yml up \
+          docker compose -f docker-compose.test.yml up \
             --abort-on-container-exit \
             --exit-code-from test-runner
       

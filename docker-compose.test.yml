@@ -1,0 +1,204 @@
+# ========================================
+# DOCKER COMPOSE FOR TESTING
+# ========================================
+# This file creates an ISOLATED testing environment
+# separate from your production environment.
+#
+# WHY SEPARATE?
+# - Production uses ports 3306, 6379, 5000
+# - Tests use ports 3307, 6380 (different ports = no conflicts!)
+# - Production data stays safe
+# - Test data is temporary and auto-deleted
+#
+# HOW TO USE:
+# docker-compose -f docker-compose.test.yml up
+# ======================================== 
+
+version: '3.8'
+
+services:
+  # ========================================
+  # TEST DATABASE (MySQL)
+  # ========================================
+  mysql-test:
+    # Use official MySQL 8 image (same as production)
+    image: mysql:8
+    
+    container_name: mysql-test
+    
+    # Environment variables for MySQL configuration
+    environment:
+      MYSQL_ROOT_PASSWORD: test_password
+      MYSQL_DATABASE: leaderboard_test_db
+    ports:
+      - "3307:3306"
+    
+    # tmpfs = Temporary File System (RAM storage)
+    # WHY USE THIS?
+    # - Super fast (RAM is faster than disk)
+    # - Auto-deleted when container stops (no cleanup needed!)
+    # - Perfect for tests (don't need to keep test data)
+    # 
+    # /var/lib/mysql = where MySQL stores all data
+    # By using tmpfs, all data goes to RAM instead of disk
+    tmpfs:
+      - /var/lib/mysql
+    
+    # Healthcheck: Make sure MySQL is READY before running tests
+    # Without this, tests might start before MySQL finishes initializing
+    # and fail with "Connection refused"
+    healthcheck:
+      # Command to check if MySQL is alive
+      # mysqladmin ping = asks "are you ready?"
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      
+      # Check every 3 seconds
+      interval: 3s
+      
+      # Wait max 3 seconds for response
+      timeout: 3s
+      
+      # Try 5 times before giving up
+      retries: 5
+      
+      # RESULT: Other services wait until this shows "healthy"
+    
+    # Restart policy
+    # "no" = Don't restart (good for tests - they should run once and stop)
+    restart: "no"
+  redis-test:
+    # Use official Redis Alpine image (small, fast)
+    image: redis:alpine
+    
+    container_name: redis-test
+
+    ports:
+      - "6380:6379"
+    tmpfs:
+      - /data
+    
+    restart: "no"
+
+  # ========================================
+  # TEST RUNNER (Runs pytest)
+  # ========================================
+  test-runner:
+    # Build from custom Dockerfile.test
+    # This Dockerfile has pytest and testing tools installed
+    build:
+      context: .  # Build from current directory
+      dockerfile: Dockerfile.test  # Use this Dockerfile
+    
+    # Container name
+    container_name: test-runner
+    
+    # These override your .env file during testing
+    environment:
+      # Database connection string for TESTING
+      # Format: mysql+pymysql://user:password@host:port/database
+      # 
+      # IMPORTANT: Use SERVICE NAMES (mysql-test, not localhost!)
+      # Why? Inside Docker network, containers talk via service names
+      # 
+      # mysql-test = The test database service defined above
+      # 3306 = Port INSIDE the container (not 3307!)
+      - DATABASE_URL=mysql+pymysql://root:test_password@mysql-test:3306/leaderboard_test_db
+      
+      # Redis connection for TESTING
+      # redis-test = The test Redis service defined above
+      - REDIS_HOST=redis-test
+      - REDIS_PORT=6379  # Port inside container
+      
+      # JWT secret key for testing
+      # Simple, fake key (OK for testing, NOT for production!)
+      - SECRET_KEY=test-secret-key-for-testing-only-not-production
+      
+      # JWT algorithm
+      - ALGORITHM=HS256
+    
+    # Mount your code into the container
+    # This means changes to your code are immediately available
+    # You don't need to rebuild the container for code changes!
+    volumes:
+      # HOST:CONTAINER
+      # . (current directory) → /app (inside container)
+      - .:/app
+      
+      # Named volume for test reports
+      # Stores test results, coverage reports
+      # Persists even after container stops (so you can view reports)
+      - test-reports:/app/test-reports
+    
+    depends_on:
+      mysql-test:
+        condition: service_healthy
+      
+      redis-test:
+        condition: service_started
+    
+    # Command to run when container starts
+    # This is what actually runs your tests!
+    # 
+    # Using sh -c allows multiple commands with && (and)
+    command: >
+      sh -c "
+        echo '=====================================' &&
+        echo 'Waiting for services to be ready...' &&
+        echo '=====================================' &&
+        sleep 5 &&
+        echo 'Running tests...' &&
+        pytest tests/ -v --cov=controllers --cov=routes --cov-report=term &&
+        echo '=====================================' &&
+        echo 'Tests completed!' &&
+        echo '======================================'
+      "
+    
+    # Explanation of pytest command:
+    # pytest tests/           = Run all tests in tests/ folder
+    # -v                      = Verbose (show test names)
+    # --cov=controllers       = Measure coverage for controllers
+    # --cov=routes           = Measure coverage for routes
+    # --cov-report=html      = Generate HTML coverage report
+    # --cov-report=term      = Show coverage in terminal
+    
+    # Don't restart
+    restart: "no"
+    
+volumes:
+  # Volume to store test reports
+  # This persists even after containers stop
+  # so you can view coverage reports later
+  test-reports:
+
+# ========================================
+# NETWORK NOTES
+# ========================================
+# Docker automatically creates a network for this compose file
+# All services can talk to each other using service names:
+# - mysql-test (from test-runner)
+# - redis-test (from test-runner)
+# 
+# From your computer (outside Docker):
+# - MySQL: localhost:3307
+# - Redis: localhost:6380
+# 
+# ========================================
+# COMPARISON: Production vs Testing
+# ========================================
+#
+# PRODUCTION (docker-compose.yml):
+# - MySQL: localhost:3306, persistent data
+# - Redis: localhost:6379, persistent data
+# - Database: leaderboard_db
+# - Secrets: Real secrets from files
+# - Restart: unless-stopped
+#
+# TESTING (docker-compose.test.yml):
+# - MySQL: localhost:3307, temporary data (tmpfs)
+# - Redis: localhost:6380, temporary data (tmpfs)
+# - Database: leaderboard_test_db
+# - Secrets: Simple test values
+# - Restart: no
+#
+# BOTH CAN RUN AT THE SAME TIME! ✅
+# ========================================
