@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from models.tables import Base
-from routes import auth
+from routes import auth, users, leaderboard
 from db.db import engine
 from fastapi.security import HTTPBearer
 
@@ -21,3 +21,5 @@ def root():
 
 
 app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(leaderboard.router)

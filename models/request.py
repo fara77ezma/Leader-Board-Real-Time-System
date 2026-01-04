@@ -9,4 +9,8 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+class SubmitScoreRequest(BaseModel):
+    game_id: str
+    score: int
  

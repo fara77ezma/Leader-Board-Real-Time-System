@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends
 from db.db import get_db
 from sqlalchemy.orm import Session
 from models.request import LoginRequest, RegisterRequest
-from controllers.auth import get_current_user, login_user, register_user
+from controllers.auth import login_user, register_user
+
 
 router = APIRouter(
-    prefix="/users",
+    prefix="/auth",
 )
 
 @router.post("/register")
@@ -19,7 +20,3 @@ def login(
     request: LoginRequest, db: Session = Depends(get_db)
 ):
    return login_user(request, db)
-
-@router.get("/api/profile")
-def get_profile(current_user: dict = Depends(get_current_user)):
-    return current_user

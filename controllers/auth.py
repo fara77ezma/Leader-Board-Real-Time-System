@@ -7,8 +7,6 @@ from passlib.context import CryptContext
 import jwt
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
-from fastapi import Depends
-from fastapi.security import HTTPBearer
 
 
 
