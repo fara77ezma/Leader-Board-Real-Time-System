@@ -1,7 +1,6 @@
 passwords.txt 
 Dockerfile
 __pycache__/
-requirements.txt
 .env
 test.py
 queries.txt
