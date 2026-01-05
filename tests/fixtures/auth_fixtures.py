@@ -1,7 +1,7 @@
 from unittest.mock import Mock
 import pytest
 
-from controllers.users import (
+from controllers.auth import (
     hash_password,
 )
 from models.request import LoginRequest, RegisterRequest
