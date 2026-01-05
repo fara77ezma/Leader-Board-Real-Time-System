@@ -10,3 +10,4 @@ cryptography
 PyJWT
 python-dotenv
 redis
+black==24.10.0

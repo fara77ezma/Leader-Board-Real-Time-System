@@ -1,4 +1,3 @@
-
 import pytest
 
 from controllers.users import (
@@ -6,7 +5,6 @@ from controllers.users import (
 )
 from models.request import LoginRequest, RegisterRequest
 from models.tables import User
-
 
 
 @pytest.fixture
@@ -25,16 +23,13 @@ def sample_register_request():
         username="testuser",
         email="test@example.com",
         password="SecurePass123",
-        phone_number="1234567890"
+        phone_number="1234567890",
     )
 
 
 @pytest.fixture
 def sample_login_request():
-    return LoginRequest(
-        username="testuser",
-        password="SecurePass123"
-    )
+    return LoginRequest(username="testuser", password="SecurePass123")
 
 
 @pytest.fixture
@@ -46,4 +41,3 @@ def mock_user():
     user.password_hash = hash_password("SecurePass123")
     user.user_code = "test-uuid-123"
     return user
-

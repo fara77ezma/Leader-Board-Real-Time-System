@@ -3,9 +3,6 @@ name: Tests
 on:
   push:
     branches: ["**"]  # Adjust branch names as needed
-  pull_request:
-    branches: ["**"]  # Adjust branch names as needed
-
 jobs:
   test:
     # github-free Ubuntu runner
@@ -18,15 +15,22 @@ jobs:
       # 2. Build test environment
       - name: Build Docker test environment
         run: docker compose -f docker-compose.test.yml build
+      # 3. Code formatting check with Black
+      - name: Check Black version
+        run: docker compose -f docker-compose.test.yml run --rm test-runner black --version
+
+      - name: Check code formatting with Black
+        run: docker compose -f docker-compose.test.yml run --rm test-runner black --check .
+
       
-      # 3. Run tests
+      # 4. Run tests
       - name: Run tests
         run: |
           docker compose -f docker-compose.test.yml up \
             --abort-on-container-exit \
             --exit-code-from test-runner
       
-      # 4. Clean up
+      # 5. Clean up
       - name: Clean up
         if: always()
         run: docker compose -f docker-compose.test.yml down -v

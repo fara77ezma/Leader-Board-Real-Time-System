@@ -9,14 +9,12 @@ router = APIRouter(
     prefix="/auth",
 )
 
+
 @router.post("/register")
-def register(
-    request: RegisterRequest, db: Session = Depends(get_db)
-):
-   return register_user(request, db)
+def register(request: RegisterRequest, db: Session = Depends(get_db)):
+    return register_user(request, db)
+
 
 @router.post("/login")
-def login(
-    request: LoginRequest, db: Session = Depends(get_db)
-):
-   return login_user(request, db)
+def login(request: LoginRequest, db: Session = Depends(get_db)):
+    return login_user(request, db)

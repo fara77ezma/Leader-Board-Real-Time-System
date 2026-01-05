@@ -9,15 +9,16 @@ app = FastAPI()
 
 security = HTTPBearer()
 
+
 @app.on_event("startup")
 async def startup():
     Base.metadata.create_all(bind=engine)
     print("✓ Database tables ready!")
-    
+
+
 @app.get("/")
 def root():
     return {"message": "Hi By Farah"}
-
 
 
 app.include_router(auth.router)
