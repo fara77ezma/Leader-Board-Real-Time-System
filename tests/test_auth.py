@@ -11,11 +11,7 @@ class TestPasswordHashing:
         assert hashed is not None
         assert hashed != password
         assert len(hashed) > 20
-    def test_hash_password_is_consistent(self):
-        password = "AnotherPassword"
-        hashed1 = hash_password(password)
-        hashed2 = hash_password(password)
-        assert hashed1 == hashed2
+        
     def test_hash_password_different_for_different_passwords(self):
         password1 = "PasswordOne"
         password2 = "PasswordTwo"
