@@ -1,3 +1,4 @@
+from unittest.mock import Mock
 import pytest
 
 from controllers.users import (
