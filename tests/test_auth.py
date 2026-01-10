@@ -1,5 +1,4 @@
 from controllers.auth import hash_password, login_user, verify_password
-from fixtures.auth_fixtures import mock_db, sample_login_request, mock_user
 from models.request import LoginRequest
 
 
@@ -54,17 +53,14 @@ class TestPasswordHashing:
         assert verified_hash == True
     
 class TestLogin:
-    def test_successful_login(self, mocker, db_session):
+    def test_successful_login(self, mocker,db_session, sample_login_request, mock_user):
         # Mock the database query to return the mock user
-        mocker.patch.object(db_session, 'query', return_value=mocker.MagicMock(
-            filter=mocker.MagicMock(
-                first=mocker.MagicMock(return_value=mock_user())
-            )
-        ))
-        # Create a login request
-        login_request = sample_login_request()
+        db_session.query.return_value.filter.return_value.first.return_value = mock_user
+        
+        mocker.patch('controllers.auth.verify_password', return_value=True)        
         # Call the login_user function
-        response = login_user(login_request, db_session)
+        response = login_user(sample_login_request, db_session)
+        
         # Assertions
         assert "token" in response
         assert response["message"] == "Login successful."
