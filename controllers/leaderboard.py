@@ -41,6 +41,7 @@ def submit_score(request: SubmitScoreRequest, current_user: dict, db: Session):
         if score <= current_best:
             return {
                 "message": "Score submitted successfully.",
+                "best_score": current_best,
                 "score": score,
                 "rank": redis_client.zrevrank(redis_key, user_id) + 1,
             }
@@ -50,6 +51,7 @@ def submit_score(request: SubmitScoreRequest, current_user: dict, db: Session):
             rank = redis_client.zrevrank(redis_key, user_id)
             return {
                 "message": "Score submitted successfully.",
+                "previous_best": current_best,
                 "score": score,
                 "rank": rank + 1,
             }  # rank is 0-based
@@ -77,3 +79,22 @@ def fetch_leaderboard(game_id: str, limit: int, db: Session):
     except Exception as e:
         print("Error fetching leaderboard from Redis:", e)
         return {"error": "Failed to fetch leaderboard."}
+
+
+def fetch_user_rank(game_id: str, current_user: dict, db: Session):
+    user_id = current_user["user_id"]
+    redis_key = f"leaderboard:{game_id}"
+    try:
+        rank = redis_client.zrevrank(redis_key, user_id)
+        if rank is None:
+            return {"message": "User not ranked yet."}
+        else:
+            score = redis_client.zscore(redis_key, user_id)
+            return {
+                "user_id": user_id,
+                "rank": rank + 1,
+                "score": score,
+            }  # rank is 0-based
+    except Exception as e:
+        print("Error fetching user rank from Redis:", e)
+        return {"error": "Failed to fetch user rank."}
