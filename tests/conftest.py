@@ -8,6 +8,7 @@ from models.request import LoginRequest, RegisterRequest
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+
 @pytest.fixture
 def mock_db():
     db = Mock()
@@ -37,6 +38,7 @@ def sample_login_request():
 def mock_user(mocker):
     user = mocker.Mock(id=1, username="testuser", password_hash="hashed")
     return user
+
 
 @pytest.fixture
 def db_session(mocker):
