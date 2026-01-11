@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+requests
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+pydantic[email]
+sqlalchemy
+pymysql
+cryptography
+PyJWT
+python-dotenv
+redis
+black==24.10.0
+pre-commit

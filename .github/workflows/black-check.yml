@@ -1,0 +1,24 @@
+name: Black Check
+
+on:
+  push:
+    branches: ["**"]  # Adjust branch names as needed
+jobs:
+  black-check:
+    # github-free Ubuntu runner
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Get code
+      - uses: actions/checkout@v4
+      
+      # 2. Build test environment
+      - name: Build Docker test environment
+        run: docker compose -f docker-compose.test.yml build
+
+      # 3. Code formatting check with Black
+      - name: Check Black version
+        run: docker compose -f docker-compose.test.yml run --rm test-runner black --version
+
+      - name: Check code formatting with Black
+        run: docker compose -f docker-compose.test.yml run --rm test-runner black --check .

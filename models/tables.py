@@ -4,8 +4,8 @@ from sqlalchemy.ext.declarative import declarative_base
 
 
 # 1. Create a SINGLE "Base" instance.
-# Think of this as a shared "Registry" or "Catalog." 
-# Every class that inherits from this Base will be recorded here. 
+# Think of this as a shared "Registry" or "Catalog."
+# Every class that inherits from this Base will be recorded here.
 # This allows SQLAlchemy to:
 #   - Handle relationships between different tables.
 #   - Create all tables at once using Base.metadata.create_all().
@@ -13,6 +13,7 @@ from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
 # --- EXAMPLE USAGE ---
+
 
 class User(Base):
     __tablename__ = "users"
@@ -25,6 +26,7 @@ class User(Base):
     phone_number = Column(String(15))
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now())
+
 
 class LeaderboardEntry(Base):
     __tablename__ = "leaderboard"

@@ -7,15 +7,9 @@ from passlib.context import CryptContext
 import jwt
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
-from fastapi import Depends
-from fastapi.security import HTTPBearer
 
 
-
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto"
-)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 load_dotenv()
 
@@ -23,16 +17,16 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 
 
-
-def register_user(request: RegisterRequest,db: Session) -> dict:
+def register_user(request: RegisterRequest, db: Session) -> dict:
     # Check if email or username already exists
-    existing_user = db.query(User).filter(
-        (User.email == request.email) | (User.username == request.username)
-    ).first()
+    existing_user = (
+        db.query(User)
+        .filter((User.email == request.email) | (User.username == request.username))
+        .first()
+    )
 
     if existing_user:
         return {"error": "Email or username already exists."}
-
 
     new_user = User(
         user_code=str(uuid.uuid4()),
@@ -48,14 +42,12 @@ def register_user(request: RegisterRequest,db: Session) -> dict:
         print("Error during user registration:", e)
         db.rollback()
         return {"error": "Registration failed."}
-    
+
     return {"message": "User registered successfully."}
 
 
-def login_user(request: LoginRequest,db: Session):
-    existing_user = db.query(User).filter(
-       User.username == request.username
-    ).first()
+def login_user(request: LoginRequest, db: Session):
+    existing_user = db.query(User).filter(User.username == request.username).first()
 
     if not existing_user:
         return {"error": "Invalid username."}
@@ -68,6 +60,7 @@ def login_user(request: LoginRequest,db: Session):
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
@@ -77,11 +70,12 @@ def create_token(user_id: int, username: str):
     payload = {
         "user_id": user_id,
         "username": username,
-        "exp": datetime.now(timezone.utc) + timedelta(hours=1)  
+        "exp": datetime.now(timezone.utc) + timedelta(hours=1),
     }
-    
+
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
     return token
+
 
 def verify_token(token: str):
     try:
@@ -92,4 +86,3 @@ def verify_token(token: str):
         return {"error": "Token has expired."}
     except jwt.InvalidTokenError:
         return {"error": "Invalid token."}
-    

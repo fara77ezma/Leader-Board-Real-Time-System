@@ -1,0 +1,10 @@
+# we can add multiple hooks from multiple repositories
+repos:
+  # black code formatter hook from the official black repository from python software foundation
+  - repo: https://github.com/psf/black
+  # specify the version of black we want to use
+    rev: 24.10.0
+    hooks:
+      # add the black hook because it might be more than one hook in the repo
+      - id: black
+        language_version: python3
