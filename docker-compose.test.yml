@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  mysql-test:
+    image: mysql:8
+    container_name: mysql-test
+    environment:
+      MYSQL_ROOT_PASSWORD: test_password
+      MYSQL_DATABASE: leaderboard_test_db
+    ports:
+      - "3307:3306"
+    # Use tmpfs for MySQL data
+    # This keeps data in memory, not on disk
+    # Perfect for tests: fast and isolated
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 3s
+      timeout: 3s
+      retries: 5    
+    restart: "no"
+  redis-test:
+    image: redis:alpine
+    container_name: redis-test
+    ports:
+      - "6380:6379"
+    tmpfs:
+      - /data    
+    restart: "no"
+  test-runner:
+    # Build from custom Dockerfile.test
+    # This Dockerfile has pytest and testing tools installed
+    build:
+      context: .  # Build from current directory
+      dockerfile: Dockerfile.test  # Use this Dockerfile
+    
+    container_name: test-runner
+    
+    # These override .env file during testing
+    environment:
+      # Inside Docker network, containers talk via service names
+      # mysql-test = The test database service defined above
+      # 3306 = Port INSIDE the container (not 3307!)
+      - DATABASE_URL=mysql+pymysql://root:test_password@mysql-test:3306/leaderboard_test_db
+      - REDIS_HOST=redis-test
+      - REDIS_PORT=6379  # Port inside container
+      - SECRET_KEY=test-secret-key-for-testing-only-not-production
+      - ALGORITHM=HS256
+
+    volumes:
+      # Mount current directory to /app in container - enables live code changes without rebuilding
+      - .:/app
+      # Named volume for test reports
+      - test-reports:/app/test-reports
+    
+    depends_on:
+      mysql-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_started
+    
+    # Command to run when container starts
+    # Using sh -c allows multiple commands with && (and)
+    command: >
+      sh -c "
+        echo '=====================================' &&
+        echo 'Waiting for services to be ready...' &&
+        echo '=====================================' &&
+        sleep 5 &&
+        echo 'Running tests...' &&
+        pytest tests/ -v --cov=controllers --cov=routes --cov-report=term &&
+        echo '=====================================' &&
+        echo 'Tests completed!' &&
+        echo '======================================'
+      "
+    
+    restart: "no"
+    
+volumes:
+  test-reports:
