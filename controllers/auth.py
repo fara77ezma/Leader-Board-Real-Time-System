@@ -3,6 +3,7 @@ from fastapi import status, HTTPException
 import os
 import uuid
 from models.request import LoginRequest, RegisterRequest
+from models.response import RegisterResponse
 from models.tables import User
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
@@ -20,7 +21,9 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 
 
-def register_user(request: RegisterRequest, db: Session, client_ip: str) -> dict:
+def register_user(
+    request: RegisterRequest, db: Session, client_ip: str
+) -> RegisterResponse:
     # Check if email or username already exists
     existing_user = (
         db.query(User)
@@ -52,10 +55,10 @@ def register_user(request: RegisterRequest, db: Session, client_ip: str) -> dict
         # reload the instance from the database to get any defaults set by the DB
         db.refresh(new_user)
 
-        return {
-            "message": "User registered successfully.",
-            "user_name": new_user.username,
-        }
+        return RegisterResponse(
+            message="User registered successfully.",
+            user_name=new_user.username,
+        )
     except IntegrityError as e:
         db.rollback()
         # This catches database constraint violations

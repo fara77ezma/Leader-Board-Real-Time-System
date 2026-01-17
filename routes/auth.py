@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from db.db import get_db
 from sqlalchemy.orm import Session
 from models.request import LoginRequest, RegisterRequest
+from models.response import RegisterResponse
 from controllers.auth import login_user, register_user
 from fastapi_limiter.depends import RateLimiter
 from fastapi import status, Request
@@ -21,7 +22,7 @@ def register(
     request: Request,
     request_data: RegisterRequest,
     db: Session = Depends(get_db),
-):
+) -> RegisterResponse:
     client_ip = request.client.host
     return register_user(
         request=request_data,
