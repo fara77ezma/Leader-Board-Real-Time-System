@@ -1,10 +1,10 @@
 from datetime import datetime
 from time import time
-from db import db
+from config import db
 from models.request import SubmitScoreRequest
 from models.tables import LeaderboardEntry, User
 from sqlalchemy.orm import Session
-from db.redis import redis_client
+from config.redis import redis_client
 
 
 def submit_score(request: SubmitScoreRequest, current_user: dict, db: Session):

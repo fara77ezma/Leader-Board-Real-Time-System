@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from models.tables import Base
 from routes import auth, users, leaderboard
-from db.db import engine
-from db.redis import close_sync_redis, close_async_redis, get_async_redis
+from config.db import engine
+from config.redis import close_sync_redis, close_async_redis, get_async_redis
 from fastapi.security import HTTPBearer
 from fastapi_limiter import FastAPILimiter
 

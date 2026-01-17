@@ -1,3 +1,4 @@
+import secrets
 from sqlite3 import IntegrityError
 from fastapi import status, HTTPException
 import os
@@ -10,6 +11,9 @@ from passlib.context import CryptContext
 import jwt
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
+from pydantic import EmailStr
+from config.mail import fast_mail
+from fastapi_mail import MessageType, MessageSchema, ConnectionConfig
 
 # deprecated="auto" ensures compatibility with older hashes
 # bcrypt__rounds=12 sets the cost factor for bcrypt the more rounds, the more secure but slower
@@ -25,30 +29,60 @@ def register_user(
     request: RegisterRequest, db: Session, client_ip: str
 ) -> RegisterResponse:
 
+    print(f"Registration attempt from IP: {client_ip}")
+    # Normalize input data
+    # emails are case-insensitive
+    email = request.email.lower().strip()
+    username = request.username.strip()
+    phone_number = request.phone_number.strip()
+
     # Check if email or username or phone number already exists
     existing_user = (
         db.query(User)
         .filter(
-            (User.email == request.email)
-            | (User.username == request.username)
-            | (User.phone_number == request.phone_number)
+            (User.email == email)
+            | (User.username == username)
+            | (User.phone_number == phone_number)
         )
         .first()
     )
     # If any of them exist, raise a conflict error
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An account with these credentials already exists",
-        )
+        if existing_user.email == email:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this email already exists",
+            )
+        elif existing_user.username == username:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this username already exists",
+            )
+        elif existing_user.phone_number == phone_number:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this phone number already exists",
+            )
 
+    verification_code = secrets.token_urlsafe(32)
+    verification_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
+
+    try:
+        password_hash = hash_password(request.password)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Registration failed. Please try again",
+        )
     # Create new user
     new_user = User(
         user_code=str(uuid.uuid4()),
-        email=request.email,
-        username=request.username,
-        phone_number=request.phone_number,
-        password_hash=hash_password(request.password),
+        email=email,
+        username=username,
+        phone_number=phone_number,
+        password_hash=password_hash,
+        email_verification_code=verification_code,
+        email_verification_expiry=verification_expiry,
     )
 
     try:
@@ -60,9 +94,9 @@ def register_user(
         # reload the instance from the database to get any defaults set by the DB
         db.refresh(new_user)
 
-        return RegisterResponse(
-            message="User registered successfully.",
-            user_name=new_user.username,
+        print(
+            "User registered successfully.",
+            f"user_name : {new_user.username}, email: {new_user.email}",
         )
     except IntegrityError as e:
         db.rollback()
@@ -78,6 +112,25 @@ def register_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Registration failed. Please try again",
         )
+    try:
+        email_sent = send_verification_email(
+            email=new_user.email,
+            username=new_user.username,
+            verification_code=new_user.email_verification_code,
+        )
+        if email_sent:
+            print(f"Verification email sent successfully to {email}")
+        else:
+            print(f"Failed to send verification email to {email}")
+    except Exception as e:
+        print(f"Error sending verification email: {e}")
+        email_sent = False
+
+    return RegisterResponse(
+        message="Registration successful. Please check your email to verify your account.",
+        requires_verification=True,
+        username=new_user.username,
+    )
 
 
 def login_user(request: LoginRequest, db: Session):
@@ -121,3 +174,67 @@ def verify_token(token: str):
         return {"error": "Token has expired."}
     except jwt.InvalidTokenError:
         return {"error": "Invalid token."}
+
+
+async def send_verification_email(
+    email: EmailStr, username: str, verification_code: str
+) -> bool:
+    base_url = os.getenv("BASE_URL", "http://localhost:5000")
+    verification_url = f"{base_url}/auth/verify-email?code={verification_code}"
+
+    # Prepare email content
+
+    html_content, text_content = generate_email_content(username, verification_url)
+    message = MessageSchema(
+        subject="Verify Your Email Address",
+        recipients=[email],
+        body=text_content,
+        subtype=MessageType.html,
+        html=html_content,
+    )
+
+    try:
+        await fast_mail.send_message(message)
+        print(f"Verification email sent to {email}")
+        return True
+    except Exception as e:
+        print(f"Failed to send verification email to {email}: {e}")
+        return False
+
+
+def generate_email_content(username, verification_url):
+    html_content = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2>Welcome {username}! 🎉</h2>
+            <p>Thank you for registering. Please verify your email address by clicking the button below:</p>
+            <p style="margin: 30px 0;">
+                <a href="{verification_url}" 
+                   style="background-color: #4CAF50; 
+                          color: white; 
+                          padding: 12px 30px; 
+                          text-decoration: none; 
+                          border-radius: 5px;
+                          display: inline-block;">
+                    Verify Email Address
+                </a>
+            </p>
+            <p style="color: #666;">
+                Or copy and paste this link into your browser:<br>
+                <a href="{verification_url}">{verification_url}</a>
+            </p>
+            <p style="color: #999; font-size: 12px;">
+                This link will expire in 24 hours.
+            </p>
+        </body>
+    </html>
+    """
+
+    # Plain text version
+    text_content = f"""
+    Welcome {username}!
+    Thank you for registering. Please verify your email by clicking this link:
+    {verification_url}
+    This link expires in 24 hours.
+    """
+    return html_content, text_content

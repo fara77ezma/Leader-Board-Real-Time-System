@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from db.db import get_db
+from config.db import get_db
 from sqlalchemy.orm import Session
 from models.request import LoginRequest, RegisterRequest
 from models.response import RegisterResponse
