@@ -4,13 +4,7 @@ from db import db
 from models.request import SubmitScoreRequest
 from models.tables import LeaderboardEntry, User
 from sqlalchemy.orm import Session
-import redis
-
-redis_client = redis.Redis(
-    host="redis",  # docker service name
-    port=6379,
-    decode_responses=True,  # to get string responses
-)
+from db.redis import redis_client
 
 
 def submit_score(request: SubmitScoreRequest, current_user: dict, db: Session):

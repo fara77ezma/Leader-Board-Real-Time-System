@@ -1,3 +1,5 @@
+from sqlite3 import IntegrityError
+from fastapi import status, HTTPException
 import os
 import uuid
 from models.request import LoginRequest, RegisterRequest
@@ -8,8 +10,9 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# deprecated="auto" ensures compatibility with older hashes
+# bcrypt__rounds=12 sets the cost factor for bcrypt the more rounds, the more secure but slower
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 
 load_dotenv()
 
@@ -17,16 +20,23 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 
 
-def register_user(request: RegisterRequest, db: Session) -> dict:
+def register_user(request: RegisterRequest, db: Session, client_ip: str) -> dict:
     # Check if email or username already exists
     existing_user = (
         db.query(User)
-        .filter((User.email == request.email) | (User.username == request.username))
+        .filter(
+            (User.email == request.email)
+            | (User.username == request.username)
+            | (User.phone_number == request.phone_number)
+        )
         .first()
     )
 
     if existing_user:
-        return {"error": "Email or username already exists."}
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with these credentials already exists",
+        )
 
     new_user = User(
         user_code=str(uuid.uuid4()),
@@ -35,15 +45,32 @@ def register_user(request: RegisterRequest, db: Session) -> dict:
         phone_number=request.phone_number,
         password_hash=hash_password(request.password),
     )
-    db.add(new_user)
     try:
+        db.add(new_user)
         db.commit()
+
+        # reload the instance from the database to get any defaults set by the DB
+        db.refresh(new_user)
+
+        return {
+            "message": "User registered successfully.",
+            "user_name": new_user.username,
+        }
+    except IntegrityError as e:
+        db.rollback()
+        # This catches database constraint violations
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with these credentials already exists",
+        )
+
     except Exception as e:
         print("Error during user registration:", e)
         db.rollback()
-        return {"error": "Registration failed."}
-
-    return {"message": "User registered successfully."}
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Registration failed. Please try again",
+        )
 
 
 def login_user(request: LoginRequest, db: Session):
