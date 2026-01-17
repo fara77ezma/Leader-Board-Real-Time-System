@@ -24,7 +24,8 @@ ALGORITHM = os.getenv("ALGORITHM")
 def register_user(
     request: RegisterRequest, db: Session, client_ip: str
 ) -> RegisterResponse:
-    # Check if email or username already exists
+
+    # Check if email or username or phone number already exists
     existing_user = (
         db.query(User)
         .filter(
@@ -34,13 +35,14 @@ def register_user(
         )
         .first()
     )
-
+    # If any of them exist, raise a conflict error
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with these credentials already exists",
         )
 
+    # Create new user
     new_user = User(
         user_code=str(uuid.uuid4()),
         email=request.email,
@@ -48,8 +50,11 @@ def register_user(
         phone_number=request.phone_number,
         password_hash=hash_password(request.password),
     )
+
     try:
+        # Add and commit the new user to the database
         db.add(new_user)
+
         db.commit()
 
         # reload the instance from the database to get any defaults set by the DB
@@ -68,7 +73,6 @@ def register_user(
         )
 
     except Exception as e:
-        print("Error during user registration:", e)
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -88,6 +92,7 @@ def login_user(request: LoginRequest, db: Session):
 
 
 def hash_password(password: str) -> str:
+    # Hash the password using Passlib
     return pwd_context.hash(password)
 
 
