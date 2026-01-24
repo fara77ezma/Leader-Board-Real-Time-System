@@ -1,4 +1,5 @@
 import secrets
+import re
 from sqlite3 import IntegrityError
 from fastapi import status, HTTPException
 import os
@@ -13,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from pydantic import EmailStr
 from config.mail import fast_mail
-from fastapi_mail import MessageType, MessageSchema, ConnectionConfig
+from fastapi_mail import MessageType, MessageSchema
 
 # deprecated="auto" ensures compatibility with older hashes
 # bcrypt__rounds=12 sets the cost factor for bcrypt the more rounds, the more secure but slower
@@ -25,7 +26,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 
 
-def register_user(
+async def register_user(
     request: RegisterRequest, db: Session, client_ip: str
 ) -> RegisterResponse:
 
@@ -113,7 +114,7 @@ def register_user(
             detail="Registration failed. Please try again",
         )
     try:
-        email_sent = send_verification_email(
+        email_sent = await send_verification_email(
             email=new_user.email,
             username=new_user.username,
             verification_code=new_user.email_verification_code,
@@ -133,13 +134,17 @@ def register_user(
     )
 
 
-def login_user(request: LoginRequest, db: Session):
+def login_user(request: LoginRequest, db: Session) -> dict:
     existing_user = db.query(User).filter(User.username == request.username).first()
 
     if not existing_user:
         return {"error": "Invalid username."}
     if not verify_password(request.password, existing_user.password_hash):
         return {"error": "Incorrect password."}
+    if not existing_user.is_verified:
+        return {
+            "error": "Email not verified. Please verify your email before logging in."
+        }
     token = create_token(existing_user.id, existing_user.username)
     return {"message": "Login successful.", "token": token}
 
@@ -153,7 +158,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_token(user_id: int, username: str):
+def create_token(user_id: int, username: str) -> str:
     """Create a simple JWT token"""
     payload = {
         "user_id": user_id,
@@ -165,7 +170,7 @@ def create_token(user_id: int, username: str):
     return token
 
 
-def verify_token(token: str):
+def verify_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         print("Decoded JWT payload:", payload)
@@ -179,19 +184,14 @@ def verify_token(token: str):
 async def send_verification_email(
     email: EmailStr, username: str, verification_code: str
 ) -> bool:
-    base_url = os.getenv("BASE_URL", "http://localhost:5000")
-    verification_url = f"{base_url}/auth/verify-email?code={verification_code}"
-
-    # Prepare email content
-
-    html_content, text_content = generate_email_content(username, verification_url)
-    message = MessageSchema(
-        subject="Verify Your Email Address",
-        recipients=[email],
-        body=text_content,
-        subtype=MessageType.html,
-        html=html_content,
+    message = build_email_structure(
+        email,
+        username,
+        subject="Email Verification",
+        url_path="verify-email",
+        verification_code=verification_code,
     )
+    print("fast_mail:", fast_mail, " sending to:", email, "message:", message)
 
     try:
         await fast_mail.send_message(message)
@@ -202,39 +202,256 @@ async def send_verification_email(
         return False
 
 
-def generate_email_content(username, verification_url):
-    html_content = f"""
-    <html>
-        <body style="font-family: Arial, sans-serif; padding: 20px;">
-            <h2>Welcome {username}! 🎉</h2>
-            <p>Thank you for registering. Please verify your email address by clicking the button below:</p>
-            <p style="margin: 30px 0;">
-                <a href="{verification_url}" 
-                   style="background-color: #4CAF50; 
-                          color: white; 
-                          padding: 12px 30px; 
-                          text-decoration: none; 
-                          border-radius: 5px;
-                          display: inline-block;">
-                    Verify Email Address
-                </a>
-            </p>
-            <p style="color: #666;">
-                Or copy and paste this link into your browser:<br>
-                <a href="{verification_url}">{verification_url}</a>
-            </p>
-            <p style="color: #999; font-size: 12px;">
-                This link will expire in 24 hours.
-            </p>
-        </body>
-    </html>
-    """
+def build_email_structure(
+    email: EmailStr, username: str, subject: str, url_path: str, verification_code: str
+) -> MessageSchema:
+    base_url = os.getenv("BASE_URL", "http://localhost:5000")
+    verification_url = f"{base_url}/auth/{url_path}?code={verification_code}"
+
+    # Prepare email content
+    if url_path == "verify-email":
+        text_content = generate_verification_email_content(username, verification_url)
+    else:
+        text_content = generate_password_reset_email_content(username, verification_url)
+    message = MessageSchema(
+        subject=subject,
+        recipients=[email],
+        body=text_content,
+        subtype=MessageType.plain,
+    )
+
+    return message
+
+
+def generate_verification_email_content(username: str, verification_url: str) -> str:
 
     # Plain text version
     text_content = f"""
-    Welcome {username}!
-    Thank you for registering. Please verify your email by clicking this link:
-    {verification_url}
-    This link expires in 24 hours.
+                    ╔═══════════════════════════════════════════════════════╗
+                    ║                                                        ║
+                    ║          Welcome to Our Platform, {username}!         ║
+                    ║                                                        ║
+                    ╚═══════════════════════════════════════════════════════╝
+
+                Thank you for registering! 🎉
+
+                To complete your registration, please verify your email address 
+                by clicking the link below:
+
+                🔗 Verification Link:
+                {verification_url}
+
+                ⏰ Important: This link will expire in 24 hours.
+
+            If you didn't create an account, you can safely ignore this email.
+
+        ---
+        Need help? Contact our support team.
     """
-    return html_content, text_content
+    return text_content
+
+
+def email_verification(code: str, db: Session) -> dict:
+    # check if code exists
+    user = db.query(User).filter(User.email_verification_code == code).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid verification code.",
+        )
+    # check if already verified
+    if user.is_verified:
+        return {"message": "Email is already verified."}
+
+    expiration_time = (user.email_verification_expiry).replace(tzinfo=timezone.utc)
+    # check if code is expired
+    if expiration_time < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification code has expired.",
+        )
+
+    user.is_verified = True
+    user.email_verification_code = None
+    user.email_verification_expiry = None
+    try:
+        db.commit()
+        db.refresh(user)
+        return {"message": "Email verified successfully."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to verify email.",
+        )
+
+
+async def resend_verification(email: str, db: Session, client_ip: str) -> dict:
+    print(f"Resend verification attempt from IP: {client_ip} for email: {email}")
+    user = db.query(User).filter(User.email == email.lower().strip()).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email.",
+        )
+    if user.is_verified:
+        return {"message": "Email is already verified."}
+
+    verification_code = secrets.token_urlsafe(32)
+    verification_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
+
+    user.email_verification_code = verification_code
+    user.email_verification_expiry = verification_expiry
+
+    try:
+        db.commit()
+        db.refresh(user)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to resend verification email.",
+        )
+
+    try:
+        email_sent = await send_verification_email(
+            email=user.email,
+            username=user.username,
+            verification_code=user.email_verification_code,
+        )
+        if email_sent:
+            print(f"Verification email resent successfully to {email}")
+            return {"message": "Verification email resent successfully."}
+        else:
+            print(f"Failed to resend verification email to {email}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to resend verification email.",
+            )
+    except Exception as e:
+        print(f"Error resending verification email: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to resend verification email.",
+        )
+
+
+async def forgot_password(email: str, db: Session, client_ip: str) -> dict:
+    print(f"Forgot password attempt from IP: {client_ip} for email: {email}")
+
+    user = db.query(User).filter(User.email == email.lower().strip()).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email.",
+        )
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email is not verified. Please verify your email first.",
+        )
+    # Here you would generate a password reset token and send it via email
+    verification_code = secrets.token_urlsafe(32)
+    user.password_reset_code = verification_code
+    user.password_reset_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
+    try:
+        db.commit()
+        db.refresh(user)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to initiate password reset.",
+        )
+    # Send password reset email
+    message = build_email_structure(
+        email=user.email,
+        username=user.username,
+        subject="Password Reset Request",
+        url_path="reset-password",
+        verification_code=user.password_reset_code,
+    )
+    try:
+        await fast_mail.send_message(message)
+        print(f"Password reset email sent to {email}")
+        return {"message": "Password reset email sent successfully."}
+    except Exception as e:
+        print(f"Failed to send password reset email to {email}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send password reset email.",
+        )
+
+
+def generate_password_reset_email_content(username: str, verification_url: str) -> str:
+    text_content = f"""
+                    ╔═══════════════════════════════════════════════════════╗
+                    ║                                                        ║
+                    ║          Password Reset Request for {username}         ║
+                    ║                                                        ║
+                    ╚═══════════════════════════════════════════════════════╝   
+                We received a request to reset your password.
+                To reset your password, click the link below:
+                🔗 Password Reset Link:
+                {verification_url}
+                ⏰ Important: This link will expire in 1 hour.
+                If you didn't request a password reset, you can safely ignore this email.
+                ---
+                Need help? Contact our support team.
+                """
+    return text_content
+
+
+def reset_password(code: str, new_password: str, db: Session) -> dict:
+    user = db.query(User).filter(User.password_reset_code == code).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid password reset code.",
+        )
+    expiration_time = (user.password_reset_expiry).replace(tzinfo=timezone.utc)
+
+    if expiration_time < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password reset code has expired.",
+        )
+    if len(new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must be at least 8 characters long.",
+        )
+    if not re.search(r"[A-Z]", new_password):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must contain at least one uppercase letter.",
+        )
+    if not re.search(r"[a-z]", new_password):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must contain at least one lowercase letter.",
+        )
+    if not re.search(r"[0-9]", new_password):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must contain at least one digit.",
+        )
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", new_password):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must contain at least one special character.",
+        )
+
+    user.password_hash = hash_password(new_password)
+    user.password_reset_code = None
+    user.password_reset_expiry = None
+    try:
+        db.commit()
+        db.refresh(user)
+        return {"message": "Password reset successfully."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to reset password.",
+        )
