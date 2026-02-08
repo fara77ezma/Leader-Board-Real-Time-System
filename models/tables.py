@@ -30,6 +30,7 @@ class User(Base):
     email_verification_expiry = Column(DateTime(timezone=True), nullable=True)
     password_reset_code = Column(String(255), unique=True, nullable=True)
     password_reset_expiry = Column(DateTime(timezone=True), nullable=True)
+    avatar_url = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
 

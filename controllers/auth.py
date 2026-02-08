@@ -1,6 +1,7 @@
 import secrets
 import re
 from sqlite3 import IntegrityError
+from controllers.users import generate_default_avatar
 from fastapi import status, HTTPException
 import os
 import uuid
@@ -36,6 +37,7 @@ async def register_user(
     email = request.email.lower().strip()
     username = request.username.strip()
     phone_number = request.phone_number.strip()
+    avatar_url = generate_default_avatar(username)
 
     # Check if email or username or phone number already exists
     existing_user = (
@@ -84,6 +86,7 @@ async def register_user(
         password_hash=password_hash,
         email_verification_code=verification_code,
         email_verification_expiry=verification_expiry,
+        avatar_url=avatar_url,
     )
 
     try:

@@ -1,6 +1,3 @@
-from datetime import datetime
-from time import time
-from config import db
 from models.request import SubmitScoreRequest
 from models.tables import LeaderboardEntry, User
 from sqlalchemy.orm import Session
