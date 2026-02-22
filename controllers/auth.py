@@ -1,10 +1,10 @@
 import secrets
 import re
+import os
+import uuid
 from sqlite3 import IntegrityError
 from controllers.users import generate_default_avatar
 from fastapi import status, HTTPException
-import os
-import uuid
 from models.request import LoginRequest, RegisterRequest
 from models.response import RegisterResponse
 from models.tables import User

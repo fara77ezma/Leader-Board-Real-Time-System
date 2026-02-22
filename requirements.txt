@@ -12,7 +12,8 @@ python-dotenv
 redis
 black==24.10.0
 pre-commit
-fastapi-limiter
+fastapi-limiter==0.1.5
 fastapi-mail
 cloudinary
 python-multipart
+pyrate-limiter==2.10.0

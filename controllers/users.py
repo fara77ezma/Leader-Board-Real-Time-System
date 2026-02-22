@@ -7,6 +7,7 @@ from models.response import UserProfileResponse
 from models.tables import User
 from fastapi import UploadFile, File
 from sqlalchemy.orm import Session
+from urllib.parse import quote
 
 
 security = HTTPBearer()
@@ -62,7 +63,6 @@ async def update_user_profile(
 
 
 def generate_default_avatar(username: str) -> str:
-    from urllib.parse import quote
 
     encoded_name = quote(username)
     return f"https://ui-avatars.com/api/?name={encoded_name}&size=200&background=random&color=fff&bold=true"

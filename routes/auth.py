@@ -16,6 +16,7 @@ router = APIRouter(
 @router.post(
     "/register",
     status_code=status.HTTP_201_CREATED,
+    # allow 5 request per 5 seconds from the same IP
     dependencies=[Depends(RateLimiter(times=5, seconds=60))],
 )
 async def register(
@@ -31,7 +32,10 @@ async def register(
     )
 
 
-@router.post("/login", dependencies=[Depends(RateLimiter(times=5, seconds=60))])
+@router.post(
+    "/login",
+    dependencies=[Depends(RateLimiter(times=5, seconds=60))],
+)
 def login(
     request: LoginRequest,
     db: Session = Depends(get_db),
@@ -45,7 +49,8 @@ def verify_email(code: str, db: Session = Depends(get_db)):
 
 
 @router.post(
-    "/resend-verification", dependencies=[Depends(RateLimiter(times=3, seconds=60))]
+    "/resend-verification",
+    dependencies=[Depends(RateLimiter(times=5, seconds=60))],
 )
 async def resend_verification_email(
     request: Request,
@@ -57,7 +62,8 @@ async def resend_verification_email(
 
 
 @router.post(
-    "/forgot-password", dependencies=[Depends(RateLimiter(times=3, seconds=60))]
+    "/forgot-password",
+    dependencies=[Depends(RateLimiter(times=5, seconds=60))],
 )
 async def forgot_password(
     request: Request,
@@ -69,7 +75,8 @@ async def forgot_password(
 
 
 @router.post(
-    "/reset-password", dependencies=[Depends(RateLimiter(times=5, seconds=60))]
+    "/reset-password",
+    dependencies=[Depends(RateLimiter(times=5, seconds=60))],
 )
 def reset_password(
     code: str,
