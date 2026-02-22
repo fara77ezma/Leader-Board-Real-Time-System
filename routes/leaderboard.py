@@ -28,6 +28,5 @@ def get_leaderboard(game_id: str, db: Session = Depends(get_db), limit: int = 10
 def get_user_rank(
     game_id: str,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
 ):
-    return fetch_user_rank(game_id=game_id, current_user=current_user, db=db)
+    return fetch_user_rank(game_id=game_id, current_user=current_user)

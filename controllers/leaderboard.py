@@ -76,8 +76,8 @@ def fetch_leaderboard(game_id: str, limit: int, db: Session):
         return {"error": "Failed to fetch leaderboard."}
 
 
-def fetch_user_rank(game_id: str, current_user: dict, db: Session):
-    user_id = current_user["user_id"]
+def fetch_user_rank(game_id: str, current_user: UserProfileResponse) -> dict:
+    user_id = current_user.id
     redis_key = f"leaderboard:{game_id}"
     try:
         rank = redis_client.zrevrank(redis_key, user_id)

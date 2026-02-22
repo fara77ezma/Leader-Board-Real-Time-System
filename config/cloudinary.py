@@ -77,7 +77,7 @@ async def upload_avatar(file: UploadFile, user_name: str) -> str:
         )
 
 
-async def delete_avatar(user_name: int) -> bool:
+async def delete_avatar(user_name: str) -> bool:
     try:
         public_id = f"leaderboard/avatars/user_{user_name}"
         result = cloudinary.uploader.destroy(public_id)
@@ -87,4 +87,8 @@ async def delete_avatar(user_name: int) -> bool:
 
     except Exception as e:
         logger.error(f"Failed to delete avatar: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete avatar. Please try again.",
+        )
         return False

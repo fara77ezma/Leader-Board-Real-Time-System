@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends
 from controllers import users
 from config.db import get_db
-from models.response import UserProfileResponse
+from models.response import DifferentUserProfileResponse, UserProfileResponse
 from sqlalchemy.orm import Session
 from fastapi import UploadFile, File
-from typing import Optional
 
 
 router = APIRouter(
@@ -19,11 +18,28 @@ async def get_profile(
     return current_user
 
 
+@router.get("/api/profile/{username}")
+async def get_user_profile(
+    username: str, db: Session = Depends(get_db)
+) -> DifferentUserProfileResponse:
+    """View another user's public profile"""
+    return await users.get_user_profile(username=username, db=db)
+
+
 @router.put("/api/profile")
 async def update_profile(
-    avatar_file: Optional[UploadFile] = File(None, description="Avatar image file"),
+    avatar_file: UploadFile,
     db: Session = Depends(get_db),
     current_user: dict = Depends(users.get_current_user),
-) -> UserProfileResponse:
+) -> dict:
 
     return await users.update_user_profile(db, current_user, avatar_file)
+
+
+@router.delete("/api/profile/avatar")
+async def delete_avatar(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(users.get_current_user),
+) -> dict:
+    """Remove custom avatar and revert to default"""
+    return await users.remove_user_avatar(db, current_user)

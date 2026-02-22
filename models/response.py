@@ -17,3 +17,10 @@ class UserProfileResponse(BaseModel):
     # Metadata
     is_verified: bool = False
     created_at: datetime
+
+
+class DifferentUserProfileResponse(BaseModel):
+    username: str
+    avatar_url: str
+    # Leaderboard stats
+    games: dict[str, dict] = {}
