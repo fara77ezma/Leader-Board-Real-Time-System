@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, TIMESTAMP
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, true, false
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -24,8 +24,15 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     phone_number = Column(String(15))
-    created_at = Column(TIMESTAMP, server_default=func.now())
-    updated_at = Column(TIMESTAMP, server_default=func.now())
+    is_verified = Column(Boolean, server_default=false())
+    is_active = Column(Boolean, server_default=true())
+    email_verification_code = Column(String(255), unique=True, nullable=True)
+    email_verification_expiry = Column(DateTime(timezone=True), nullable=True)
+    password_reset_code = Column(String(255), unique=True, nullable=True)
+    password_reset_expiry = Column(DateTime(timezone=True), nullable=True)
+    avatar_url = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class LeaderboardEntry(Base):
@@ -35,5 +42,5 @@ class LeaderboardEntry(Base):
     user_code = Column(String(36), nullable=False)
     score = Column(Integer, nullable=False)
     game_id = Column(String(50), nullable=False)
-    created_at = Column(TIMESTAMP, server_default=func.now())
-    updated_at = Column(TIMESTAMP, server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
