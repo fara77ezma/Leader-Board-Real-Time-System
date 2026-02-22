@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from fastapi import UploadFile
+from datetime import datetime
 
 
 class RegisterResponse(BaseModel):
@@ -11,4 +11,9 @@ class RegisterResponse(BaseModel):
 class UserProfileResponse(BaseModel):
     id: int
     username: str
-    avatar_url: UploadFile = None
+    avatar_url: str
+    # Leaderboard stats
+    games: dict[str, dict] = {}
+    # Metadata
+    is_verified: bool = False
+    created_at: datetime

@@ -8,12 +8,13 @@ from models.tables import User
 from fastapi import UploadFile, File
 from sqlalchemy.orm import Session
 from urllib.parse import quote
+from controllers.leaderboard import get_player_ranks_from_redis
 
 
 security = HTTPBearer()
 
 
-def get_current_user(
+async def get_current_user(
     db: Session = Depends(get_db), token: str = Depends(security)
 ) -> UserProfileResponse:
     from controllers.auth import verify_token
@@ -29,10 +30,15 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=payload["error"]
         )
+    games = await get_player_ranks_from_redis(player_id=user.id)
+
     return UserProfileResponse(
         id=payload["user_id"],
         username=payload["username"],
         avatar_url=user.avatar_url if user.avatar_url else None,
+        games=games,
+        is_verified=user.is_verified,
+        created_at=user.created_at,
     )
 
 

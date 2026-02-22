@@ -1,15 +1,19 @@
 from models.request import SubmitScoreRequest
+from models.response import UserProfileResponse
 from models.tables import LeaderboardEntry, User
 from sqlalchemy.orm import Session
 from config.redis import redis_client
+from config.redis import get_async_redis
 
 
-def submit_score(request: SubmitScoreRequest, current_user: dict, db: Session):
+def submit_score(
+    request: SubmitScoreRequest, current_user: UserProfileResponse, db: Session
+):
     # Logic to submit the score to the leaderboard
     score = request.score
     game_id = request.game_id
-    user_id = current_user["user_id"]
-    existing_user = db.query(User).filter(User.id == current_user["user_id"]).first()
+    user_id = current_user.id
+    existing_user = db.query(User).filter(User.id == current_user.id).first()
     if not existing_user:
         return {"error": "User not found."}
     user_code = existing_user.user_code
@@ -89,3 +93,31 @@ def fetch_user_rank(game_id: str, current_user: dict, db: Session):
     except Exception as e:
         print("Error fetching user rank from Redis:", e)
         return {"error": "Failed to fetch user rank."}
+
+
+async def get_player_ranks_from_redis(player_id: int) -> dict[str, int]:
+    """
+    Discover games from Redis and return player's rank in each one.
+    """
+    async_redis_client = await get_async_redis()
+
+    result: dict[str, int] = {}
+    cursor = 0
+
+    while True:
+        cursor, keys = await async_redis_client.scan(
+            cursor=cursor, match="leaderboard:*", count=100
+        )
+
+        for key in keys:
+            rank = await async_redis_client.zrank(key, str(player_id))
+
+            if rank is not None:
+                game_id = key[len("leaderboard:") :]
+                current_score = redis_client.zscore(key, str(player_id)) or 0
+                result[game_id] = {"score": current_score, "rank": rank + 1}
+
+        if cursor == 0:
+            break
+
+    return result

@@ -13,7 +13,7 @@ router = APIRouter(
 
 
 @router.get("/api/profile")
-def get_profile(
+async def get_profile(
     current_user: dict = Depends(users.get_current_user),
 ) -> UserProfileResponse:
     return current_user

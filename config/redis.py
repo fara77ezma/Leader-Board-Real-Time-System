@@ -9,8 +9,7 @@ redis_client = redis.Redis(
     decode_responses=True,  # to get string responses
 )
 
-
-async_redis_client = None
+async_redis_client: aioredis.Redis | None = None
 
 
 async def get_async_redis() -> aioredis.Redis:
