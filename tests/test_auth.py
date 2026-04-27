@@ -69,7 +69,9 @@ class TestRegisterUser:
         db_session.add.assert_called_once()
         db_session.commit.assert_called_once()
 
-    def test_duplicate_user_returns_error(self, db_session, sample_register_request, mock_user):
+    def test_duplicate_user_returns_error(
+        self, db_session, sample_register_request, mock_user
+    ):
         db_session.query.return_value.filter.return_value.first.return_value = mock_user
 
         from controllers.auth import register_user
