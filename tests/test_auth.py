@@ -57,6 +57,40 @@ class TestPasswordHashing:
         assert verified_hash == True
 
 
+class TestRegisterUser:
+    def test_successful_registration(self, db_session, sample_register_request):
+        db_session.query.return_value.filter.return_value.first.return_value = None
+
+        from controllers.auth import register_user
+
+        result = register_user(sample_register_request, db_session)
+
+        assert result == {"message": "User registered successfully."}
+        db_session.add.assert_called_once()
+        db_session.commit.assert_called_once()
+
+    def test_duplicate_user_returns_error(self, db_session, sample_register_request, mock_user):
+        db_session.query.return_value.filter.return_value.first.return_value = mock_user
+
+        from controllers.auth import register_user
+
+        result = register_user(sample_register_request, db_session)
+
+        assert result == {"error": "Email or username already exists."}
+        db_session.add.assert_not_called()
+
+    def test_db_commit_failure_rolls_back(self, db_session, sample_register_request):
+        db_session.query.return_value.filter.return_value.first.return_value = None
+        db_session.commit.side_effect = Exception("DB error")
+
+        from controllers.auth import register_user
+
+        result = register_user(sample_register_request, db_session)
+
+        assert result == {"error": "Registration failed."}
+        db_session.rollback.assert_called_once()
+
+
 class TestLogin:
     def test_successful_login(
         self, mocker, db_session, sample_login_request, mock_user
