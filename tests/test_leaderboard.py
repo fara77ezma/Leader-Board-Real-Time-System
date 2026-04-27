@@ -1,4 +1,5 @@
 import pytest
+from types import SimpleNamespace
 from controllers.leaderboard import fetch_leaderboard, submit_score
 from models.request import SubmitScoreRequest
 
@@ -8,7 +9,7 @@ def make_submit_request(game_id="game_001", score=100):
 
 
 def make_current_user(user_id=1, username="testuser"):
-    return {"user_id": user_id, "username": username}
+    return SimpleNamespace(id=user_id, username=username)
 
 
 @pytest.fixture

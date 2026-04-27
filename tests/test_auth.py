@@ -1,5 +1,6 @@
+import pytest
+from fastapi import HTTPException
 from controllers.auth import hash_password, login_user, verify_password
-from models.request import LoginRequest
 
 
 class TestPasswordHashing:
@@ -58,38 +59,54 @@ class TestPasswordHashing:
 
 
 class TestRegisterUser:
-    def test_successful_registration(self, db_session, sample_register_request):
+    @pytest.mark.asyncio
+    async def test_successful_registration(
+        self, db_session, sample_register_request, mocker
+    ):
         db_session.query.return_value.filter.return_value.first.return_value = None
+        mocker.patch("controllers.auth.send_verification_email", return_value=True)
 
         from controllers.auth import register_user
 
-        result = register_user(sample_register_request, db_session)
+        result = await register_user(
+            sample_register_request, db_session, client_ip="127.0.0.1"
+        )
 
-        assert result == {"message": "User registered successfully."}
+        assert result.requires_verification is True
+        assert "Registration successful" in result.message
         db_session.add.assert_called_once()
-        db_session.commit.assert_called_once()
 
-    def test_duplicate_user_returns_error(
+    @pytest.mark.asyncio
+    async def test_duplicate_user_raises_conflict(
         self, db_session, sample_register_request, mock_user
     ):
         db_session.query.return_value.filter.return_value.first.return_value = mock_user
 
         from controllers.auth import register_user
 
-        result = register_user(sample_register_request, db_session)
+        with pytest.raises(HTTPException) as exc_info:
+            await register_user(
+                sample_register_request, db_session, client_ip="127.0.0.1"
+            )
 
-        assert result == {"error": "Email or username already exists."}
+        assert exc_info.value.status_code == 409
         db_session.add.assert_not_called()
 
-    def test_db_commit_failure_rolls_back(self, db_session, sample_register_request):
+    @pytest.mark.asyncio
+    async def test_db_commit_failure_raises_500(
+        self, db_session, sample_register_request
+    ):
         db_session.query.return_value.filter.return_value.first.return_value = None
         db_session.commit.side_effect = Exception("DB error")
 
         from controllers.auth import register_user
 
-        result = register_user(sample_register_request, db_session)
+        with pytest.raises(HTTPException) as exc_info:
+            await register_user(
+                sample_register_request, db_session, client_ip="127.0.0.1"
+            )
 
-        assert result == {"error": "Registration failed."}
+        assert exc_info.value.status_code == 500
         db_session.rollback.assert_called_once()
 
 

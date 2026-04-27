@@ -20,15 +20,14 @@ async def get_current_user(
     from controllers.auth import verify_token
 
     payload = verify_token(token.credentials)
+    if "error" in payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=payload["error"]
+        )
     user = db.query(User).filter(User.id == payload["user_id"]).first()
     if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-
-    if "error" in payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=payload["error"]
         )
     games = await get_player_ranks_from_redis(player_id=user.id)
 
