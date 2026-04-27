@@ -25,7 +25,7 @@ def sample_register_request():
         username="testuser",
         email="test@example.com",
         password="SecurePass123",
-        phone_number="1234567890",
+        phone_number="01234567890",
     )
 
 
