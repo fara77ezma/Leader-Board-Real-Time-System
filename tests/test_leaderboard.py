@@ -103,9 +103,9 @@ class TestSubmitScore:
         )
         mock_redis = mocker.patch("controllers.leaderboard.redis_client")
         mock_redis.zscore.side_effect = Exception("Redis down")
+        breakpoint()
 
         result = submit_score(make_submit_request(), make_current_user(), db_session)
-
         assert result == {"error": "Score submission failed at leaderboard update."}
 
 

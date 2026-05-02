@@ -29,8 +29,8 @@ def submit_score(
         return {"error": "Score submission failed."}
     # Insert in Redis sorted set for quick leaderboard retrieval
     redis_key = f"leaderboard:{game_id}"
-    current_best = redis_client.zscore(redis_key, user_id) or 0
     try:
+        current_best = redis_client.zscore(redis_key, user_id) or 0
         print("Current best score in Redis:", current_best)
 
         if score <= current_best:

@@ -24,7 +24,7 @@ def sample_register_request():
     return RegisterRequest(
         username="testuser",
         email="test@example.com",
-        password="SecurePass123",
+        password="Secure@Pass123",
         phone_number="01234567890",
     )
 
