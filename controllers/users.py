@@ -71,8 +71,15 @@ async def update_user_profile(
     if avatar_file:
         avatar_url = await upload_avatar(avatar_file, current_user.username)
         user.avatar_url = avatar_url
-
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        print("Error updating user profile:", e)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update user profile.",
+        )
     db.refresh(user)
     return {"message": "avatar updated successfully."}
 
@@ -86,7 +93,15 @@ async def remove_user_avatar(db: Session, current_user: UserProfileResponse) -> 
         )
     await delete_avatar(user.username)
     user.avatar_url = generate_default_avatar(username=user.username)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete user avatar.",
+        )
+
     db.refresh(user)
 
     return {"message": "avatar deleted successfully."}
