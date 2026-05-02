@@ -1,13 +1,18 @@
+import os
+
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from urllib.parse import quote_plus
 
 
 # Helper: read Docker secret
 def read_secret(path: str) -> str:
-    with open(path, "r") as f:
-        return f.read().strip()
+    try:
+        with open(path, "r") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        # Fallback to env var during testing/local dev
+        return os.environ.get("DB_PASSWORD", "fallback_test_password")
 
 
 # quote_plus is used to safely encode special characters in the password
