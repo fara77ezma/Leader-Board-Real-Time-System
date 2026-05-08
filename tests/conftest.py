@@ -146,3 +146,41 @@ def get_user():
             db.close()
 
     return _get_user
+
+
+@pytest.fixture
+def register_verified_user(client, get_user):
+    def _register_verified_user(
+        username: str,
+        email: str,
+        phone_number: str,
+        password: str = "Secure@Pass123",
+    ):
+        register_response = client.post(
+            "/auth/register",
+            json={
+                "username": username,
+                "email": email,
+                "password": password,
+                "phone_number": phone_number,
+            },
+        )
+        assert register_response.status_code == 201, register_response.json()
+
+        user = get_user(username)
+        client.get("/auth/verify-email", params={"code": user.email_verification_code})
+
+        login_response = client.post(
+            "/auth/login",
+            json={"username": username, "password": password},
+        )
+        assert login_response.status_code == 200, login_response.json()
+        token = login_response.json()["token"]
+
+        return {
+            "username": username,
+            "token": token,
+            "headers": {"Authorization": f"Bearer {token}"},
+        }
+
+    return _register_verified_user
