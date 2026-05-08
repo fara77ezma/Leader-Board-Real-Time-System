@@ -12,11 +12,12 @@ router = APIRouter(
 
 @router.post("/api/submit-score")
 async def submit_new_score(
-    request: SubmitScoreRequest,
+    request: Request,
+    body: SubmitScoreRequest,
     db: Session = Depends(get_db),
 ):
     current_user = await users.get_current_user(request=request, db=db)
-    return submit_score(request=request, current_user=current_user, db=db)
+    return submit_score(request=body, current_user=current_user, db=db)
 
 
 @router.get("/api/get-leaderboard/{game_id}")
