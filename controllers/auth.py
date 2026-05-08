@@ -141,13 +141,20 @@ def login_user(request: LoginRequest, db: Session) -> dict:
     existing_user = db.query(User).filter(User.username == request.username).first()
 
     if not existing_user:
-        return {"error": "Invalid username."}
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid username or password.",
+        )
     if not verify_password(request.password, existing_user.password_hash):
-        return {"error": "Incorrect password."}
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password.",
+        )
     if not existing_user.is_verified:
-        return {
-            "error": "Email not verified. Please verify your email before logging in."
-        }
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email not verified. Please verify your email before logging in.",
+        )
     token = create_token(existing_user.id, existing_user.username)
     return {"message": "Login successful.", "token": token}
 

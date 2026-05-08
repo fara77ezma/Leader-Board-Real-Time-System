@@ -110,7 +110,7 @@ async def get_player_ranks_from_redis(player_id: int) -> dict[str, int]:
         )
 
         for key in keys:
-            rank = await async_redis_client.zrank(key, str(player_id))
+            rank = await async_redis_client.zrevrank(key, str(player_id))
 
             if rank is not None:
                 game_id = key[len("leaderboard:") :]

@@ -1,11 +1,17 @@
+import os
+
 import redis
 from redis import asyncio as aioredis
+
+
+REDIS_HOST = os.environ.get("REDIS_HOST", "redis")
+REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
 
 # Synchronous Redis client
 # the connection pool reuses connections for better performance so its fine to not close it after every use
 redis_client = redis.Redis(
-    host="redis",  # docker service name
-    port=6379,
+    host=REDIS_HOST,
+    port=REDIS_PORT,
     decode_responses=True,  # to get string responses
 )
 
@@ -17,7 +23,7 @@ async def get_async_redis() -> aioredis.Redis:
 
     if async_redis_client is None:
         async_redis_client = await aioredis.from_url(
-            "redis://redis:6379",  # Using your docker service name
+            f"redis://{REDIS_HOST}:{REDIS_PORT}",
             encoding="utf-8",
             decode_responses=True,
         )

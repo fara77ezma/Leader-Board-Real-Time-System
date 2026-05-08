@@ -1,7 +1,10 @@
 import sys
+import time
 from pathlib import Path
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 import pytest
+from sqlalchemy import text
 from models.request import LoginRequest, RegisterRequest
 from models.response import UserProfileResponse
 
@@ -85,3 +88,61 @@ def mock_upload_file():
     file.filename = "avatar.jpg"
     file.file = Mock()
     return file
+
+
+@pytest.fixture
+def client(mocker):
+    from app import app
+    from config.db import engine
+    from config.redis import redis_client
+    from models.tables import Base
+
+    for attempt in range(10):
+        try:
+            with engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+            break
+        except Exception:
+            if attempt == 9:
+                raise
+            time.sleep(1)
+
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    redis_client.flushdb()
+
+    async def fake_send_verification_email(*args, **kwargs):
+        return True
+
+    mocker.patch(
+        "controllers.auth.send_verification_email",
+        side_effect=fake_send_verification_email,
+    )
+    mocker.patch(
+        "controllers.auth.fast_mail.send_message",
+        new=AsyncMock(return_value=None),
+    )
+
+    from fastapi.testclient import TestClient
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+    redis_client.flushdb()
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+
+@pytest.fixture
+def get_user():
+    from config.db import SessionLocal
+    from models.tables import User
+
+    def _get_user(username: str):
+        db = SessionLocal()
+        try:
+            return db.query(User).filter(User.username == username).first()
+        finally:
+            db.close()
+
+    return _get_user

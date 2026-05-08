@@ -19,7 +19,10 @@ def read_secret(path: str) -> str:
 DB_PASSWORD = quote_plus(read_secret("/run/secrets/passwords"))
 
 # - mysql        → Docker service name (NOT localhost)
-DATABASE_URL = f"mysql+pymysql://root:{DB_PASSWORD}@mysql:3306/leaderboard_db"
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    f"mysql+pymysql://root:{DB_PASSWORD}@mysql:3306/leaderboard_db",
+)
 print("Connecting to database at:", DATABASE_URL)
 engine = create_engine(
     DATABASE_URL,
