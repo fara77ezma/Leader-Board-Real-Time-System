@@ -27,8 +27,7 @@ def submit_score(
         print("Error during score submission:", e)
         db.rollback()
         return {"error": "Score submission failed."}
-    
-    
+
     # Insert in Redis sorted set for quick leaderboard retrieval
     redis_key = f"leaderboard:{game_id}"
     try:

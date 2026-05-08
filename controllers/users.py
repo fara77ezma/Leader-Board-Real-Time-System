@@ -10,11 +10,11 @@ from controllers.leaderboard import get_player_ranks_from_redis
 from config.cloudinary import delete_avatar
 
 
-
 async def get_current_user(
-   request: Request, db: Session = Depends(get_db)
+    request: Request, db: Session = Depends(get_db)
 ) -> UserProfileResponse:
     from controllers.auth import verify_token
+
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         raise HTTPException(
