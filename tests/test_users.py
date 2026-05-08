@@ -277,11 +277,11 @@ class TestRemoveUserAvatar:
 
         # Mock Cloudinary delete with error
         mocker.patch(
-            "controllers.users.delete_avatar",
+            "controllers.users.cloudinary.uploader.destroy",
             side_effect=Exception("Cloudinary error"),
         )
 
         with pytest.raises(Exception):
             result = await remove_user_avatar(db_session, mock_current_user)
             assert result.status_code == 500
-            assert "Failed to delete user avatar" in str(result.detail)
+            assert "Failed to delete avatar. Please try again." in str(result.detail)

@@ -1,11 +1,12 @@
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from unittest.mock import Mock
 import pytest
 from sqlalchemy import text
-from models.request import LoginRequest, RegisterRequest
+from models.request import LoginRequest, RegisterRequest, SubmitScoreRequest
 from models.response import UserProfileResponse
 
 project_root = Path(__file__).parent.parent
@@ -183,3 +184,21 @@ def register_verified_user(client, get_user):
         }
 
     return _register_verified_user
+
+@pytest.fixture
+def make_submit_request(game_id="game_001", score=100):
+    return SubmitScoreRequest(game_id=game_id, score=score)
+
+@pytest.fixture
+def make_current_user(user_id=1, username="testuser"):
+    return SimpleNamespace(id=user_id, username=username)
+
+
+@pytest.fixture
+def mock_leaderboard_user(mocker):
+    user = mocker.Mock()
+    user.id = 1
+    user.username = "testuser"
+    user.user_code = "test-uuid-123"
+    return user
+

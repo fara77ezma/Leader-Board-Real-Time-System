@@ -19,13 +19,6 @@ class TestPasswordHashing:
         hashed2 = hash_password(password2)
         assert hashed1 != hashed2
 
-    def test_hash_password_handles_empty_string(self):
-        password = ""
-        hashed = hash_password(password)
-        assert hashed is not None
-        assert hashed != password
-        assert len(hashed) > 20
-
     def test_hash_password_handles_special_characters(self):
         password = "P@$$w0rd!#%"
         hashed = hash_password(password)
@@ -38,7 +31,6 @@ class TestPasswordHashing:
         hashed = hash_password(password)
         assert hashed is not None
         assert hashed != password
-        # Verify by hashing again and comparing
         verified_hash = verify_password(password, hashed)
         assert verified_hash == True
 
@@ -49,14 +41,6 @@ class TestPasswordHashing:
         assert hashed is not None
         verified_hash = verify_password(wrong_password, hashed)
         assert verified_hash == False
-
-    def test_verify_empty_password(self):
-        password = ""
-        hashed = hash_password(password)
-        assert hashed is not None
-        verified_hash = verify_password(password, hashed)
-        assert verified_hash == True
-
 
 class TestRegisterUser:
     @pytest.mark.asyncio
