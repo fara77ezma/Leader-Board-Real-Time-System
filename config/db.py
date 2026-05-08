@@ -1,20 +1,28 @@
+import os
+
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from urllib.parse import quote_plus
 
 
 # Helper: read Docker secret
 def read_secret(path: str) -> str:
-    with open(path, "r") as f:
-        return f.read().strip()
+    try:
+        with open(path, "r") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        # Fallback to env var during testing/local dev
+        return os.environ.get("DB_PASSWORD", "fallback_test_password")
 
 
 # quote_plus is used to safely encode special characters in the password
 DB_PASSWORD = quote_plus(read_secret("/run/secrets/passwords"))
 
 # - mysql        → Docker service name (NOT localhost)
-DATABASE_URL = f"mysql+pymysql://root:{DB_PASSWORD}@mysql:3306/leaderboard_db"
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    f"mysql+pymysql://root:{DB_PASSWORD}@mysql:3306/leaderboard_db",
+)
 print("Connecting to database at:", DATABASE_URL)
 engine = create_engine(
     DATABASE_URL,

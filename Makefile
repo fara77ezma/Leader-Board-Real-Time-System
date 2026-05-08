@@ -6,10 +6,16 @@ test:
     # run instead of up to avoid starting unnecessary services for testing + ensure clean state + remove volumes after + open as shell to debug if needed
 	docker-compose -f docker-compose.test.yml run --rm -it test-runner
 	docker-compose -f docker-compose.test.yml down -v
-	
+
+# make test-one TARGET=tests/test_auth_integration.py::TestRegister::test_successful_registration_returns_201
+test-one:
+	docker-compose -f docker-compose.test.yml run --rm -it test-runner pytest $(TARGET)
+	docker-compose -f docker-compose.test.yml down -v
 
 # Alias for test
 t: test
+
+to: test-one
 
 # Run development environment
 dev:
