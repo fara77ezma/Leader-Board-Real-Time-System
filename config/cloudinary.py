@@ -91,4 +91,3 @@ async def delete_avatar(user_name: str) -> bool:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete avatar. Please try again.",
         )
-        return False
