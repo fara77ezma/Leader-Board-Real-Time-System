@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from config.db import get_db
 from sqlalchemy.orm import Session
 from models.request import SubmitScoreRequest
@@ -27,6 +27,8 @@ def get_leaderboard(game_id: str, db: Session = Depends(get_db), limit: int = 10
 @router.get("/api/get-leaderboard/{game_id}/user-rank")
 async def get_user_rank(
     game_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
 ):
-    current_user = await users.get_current_user()
+    current_user = await users.get_current_user(request=request, db=db)
     return fetch_user_rank(game_id=game_id, current_user=current_user)
