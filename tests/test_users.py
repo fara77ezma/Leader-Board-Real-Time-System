@@ -1,5 +1,5 @@
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from unittest.mock import Mock
 from controllers.users import (
     get_current_user,
@@ -32,9 +32,7 @@ class TestGetCurrentUser:
             return_value={"game_001": {"score": 100, "rank": 1}},
         )
 
-        result = await get_current_user(
-            db=db_session, token=Mock(credentials="valid_token")
-        )
+        result = await get_current_user(request=Request, db=db_session)
 
         assert result.id == 1
         assert result.username == "testuser"
@@ -66,7 +64,7 @@ class TestGetCurrentUser:
         db_session.query.return_value.filter.return_value.first.return_value = None
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(db=db_session, token=Mock(credentials="valid_token"))
+            await get_current_user(request=Request, db=db_session)
 
         assert exc_info.value.status_code == 404
 
@@ -86,7 +84,7 @@ class TestGetCurrentUser:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(db=db_session, token=Mock(credentials="valid_token"))
+            await get_current_user(db=db_session, request=Request)
 
         assert exc_info.value.status_code == 404
 

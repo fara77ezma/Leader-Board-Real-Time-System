@@ -64,7 +64,7 @@ class TestRegisterUser:
         self, db_session, sample_register_request, mocker
     ):
         db_session.query.return_value.filter.return_value.first.return_value = None
-        mocker.patch("controllers.auth.send_verification_email", return_value=True)
+        mocker.patch("controllers.auth.send_auth_email", return_value=True)
 
         from controllers.auth import register_user
 

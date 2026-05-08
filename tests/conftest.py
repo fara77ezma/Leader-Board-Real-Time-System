@@ -8,7 +8,6 @@ from sqlalchemy import text
 from models.request import LoginRequest, RegisterRequest
 from models.response import UserProfileResponse
 
-
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
@@ -111,12 +110,12 @@ def client(mocker):
     Base.metadata.create_all(bind=engine)
     redis_client.flushdb()
 
-    async def fake_send_verification_email(*args, **kwargs):
+    async def fake_send_auth_email(*args, **kwargs):
         return True
 
     mocker.patch(
-        "controllers.auth.send_verification_email",
-        side_effect=fake_send_verification_email,
+        "controllers.auth.send_auth_email",
+        side_effect=fake_send_auth_email,
     )
     mocker.patch(
         "controllers.auth.fast_mail.send_message",

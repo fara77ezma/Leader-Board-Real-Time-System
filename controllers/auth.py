@@ -1,5 +1,4 @@
 import secrets
-import re
 import os
 import uuid
 from sqlite3 import IntegrityError
@@ -50,7 +49,7 @@ async def register_user(
         .first()
     )
     # If any of them exist, raise a conflict error
-    #TODO consider the is_active flag here to allow reusing email/username/phone of deactivated accounts, or add a separate unique constraint on active accounts only
+    # TODO consider the is_active flag here to allow reusing email/username/phone of deactivated accounts, or add a separate unique constraint on active accounts only
     if existing_user:
         if existing_user.email == email:
             raise HTTPException(
@@ -117,15 +116,13 @@ async def register_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Registration failed. Please try again",
         )
-        
 
     await send_auth_email(
-            email=new_user.email,
-            username=new_user.username,
-            verification_code=new_user.email_verification_code,
-        )
-   
-    
+        email=new_user.email,
+        username=new_user.username,
+        verification_code=new_user.email_verification_code,
+    )
+
     return RegisterResponse(
         message="Registration successful. Please check your email to verify your account.",
         requires_verification=True,
@@ -136,7 +133,11 @@ async def register_user(
 def login_user(request: LoginRequest, db: Session) -> dict:
     existing_user = db.query(User).filter(User.username == request.username).first()
 
-    if not existing_user or not verify_password(request.password, existing_user.password_hash) or not existing_user.is_active:
+    if (
+        not existing_user
+        or not verify_password(request.password, existing_user.password_hash)
+        or not existing_user.is_active
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Invalid username or password.",
@@ -396,7 +397,7 @@ def reset_password(code: str, new_password: str, db: Session) -> dict:
             detail="Password reset code has expired.",
         )
     RegisterRequest.validate_password(new_password)
-    
+
     user.password_hash = hash_password(new_password)
     user.password_reset_code = None
     user.password_reset_expiry = None
