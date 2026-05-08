@@ -34,7 +34,7 @@ def sample_register_request():
 
 @pytest.fixture
 def sample_login_request():
-    return LoginRequest(username="testuser", password="SecurePass123")
+    return LoginRequest(username="testuser", password="Secure@Pass123")
 
 
 @pytest.fixture
