@@ -50,6 +50,7 @@ async def register_user(
         .first()
     )
     # If any of them exist, raise a conflict error
+    #TODO consider the is_active flag here to allow reusing email/username/phone of deactivated accounts, or add a separate unique constraint on active accounts only
     if existing_user:
         if existing_user.email == email:
             raise HTTPException(
@@ -135,7 +136,7 @@ async def register_user(
 def login_user(request: LoginRequest, db: Session) -> dict:
     existing_user = db.query(User).filter(User.username == request.username).first()
 
-    if not existing_user or not verify_password(request.password, existing_user.password_hash):
+    if not existing_user or not verify_password(request.password, existing_user.password_hash) or not existing_user.is_active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Invalid username or password.",
@@ -257,7 +258,7 @@ def generate_verification_email_content(username: str, verification_url: str) ->
 def email_verification(code: str, db: Session) -> dict:
     # check if code exists
     user = db.query(User).filter(User.email_verification_code == code).first()
-    if not user:
+    if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid verification code.",
@@ -292,7 +293,7 @@ def email_verification(code: str, db: Session) -> dict:
 async def resend_verification(email: str, db: Session, client_ip: str) -> dict:
     print(f"Resend verification attempt from IP: {client_ip} for email: {email}")
     user = db.query(User).filter(User.email == email.lower().strip()).first()
-    if not user:
+    if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No account found with this email.",
@@ -328,7 +329,7 @@ async def forgot_password(email: str, db: Session, client_ip: str) -> dict:
     print(f"Forgot password attempt from IP: {client_ip} for email: {email}")
 
     user = db.query(User).filter(User.email == email.lower().strip()).first()
-    if not user:
+    if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No account found with this email.",
@@ -382,7 +383,7 @@ def generate_password_reset_email_content(username: str, verification_url: str) 
 
 def reset_password(code: str, new_password: str, db: Session) -> dict:
     user = db.query(User).filter(User.password_reset_code == code).first()
-    if not user:
+    if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid password reset code.",
