@@ -42,6 +42,7 @@ class TestPasswordHashing:
         verified_hash = verify_password(wrong_password, hashed)
         assert verified_hash == False
 
+
 class TestRegisterUser:
     @pytest.mark.asyncio
     async def test_successful_registration(
