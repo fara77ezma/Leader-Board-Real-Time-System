@@ -1,15 +1,23 @@
 from controllers.leaderboard import fetch_leaderboard, submit_score
 
+
 class TestSubmitScore:
-    def test_user_not_found_returns_error(self, db_session,make_submit_request, make_current_user):
+    def test_user_not_found_returns_error(
+        self, db_session, make_submit_request, make_current_user
+    ):
         db_session.query.return_value.filter.return_value.first.return_value = None
 
-        result = submit_score(make_submit_request, make_current_user, db_session)
+        result = submit_score(make_submit_request(), make_current_user(), db_session)
 
         assert result == {"error": "User not found."}
 
     def test_new_high_score_is_added_to_redis(
-        self, db_session, mock_leaderboard_user, mocker,make_submit_request, make_current_user
+        self,
+        db_session,
+        mock_leaderboard_user,
+        mocker,
+        make_submit_request,
+        make_current_user,
     ):
         db_session.query.return_value.filter.return_value.first.return_value = (
             mock_leaderboard_user
@@ -17,9 +25,8 @@ class TestSubmitScore:
         mock_redis = mocker.patch("controllers.leaderboard.redis_client")
         mock_redis.zscore.return_value = None  # no existing score
         mock_redis.zrevrank.return_value = 0  # rank 1 (0-indexed)
-
         result = submit_score(
-            make_submit_request(score=150), make_current_user, db_session
+            make_submit_request(score=150), make_current_user(), db_session
         )
 
         assert result["message"] == "Score submitted successfully."
@@ -28,7 +35,12 @@ class TestSubmitScore:
         mock_redis.zadd.assert_called_once_with("leaderboard:game_001", {1: 150})
 
     def test_lower_score_does_not_update_redis(
-        self, db_session, mock_leaderboard_user, mocker,make_submit_request, make_current_user
+        self,
+        db_session,
+        mock_leaderboard_user,
+        mocker,
+        make_submit_request,
+        make_current_user,
     ):
         db_session.query.return_value.filter.return_value.first.return_value = (
             mock_leaderboard_user
@@ -36,9 +48,8 @@ class TestSubmitScore:
         mock_redis = mocker.patch("controllers.leaderboard.redis_client")
         mock_redis.zscore.return_value = 200  # existing best is 200
         mock_redis.zrevrank.return_value = 2  # rank 3 (0-indexed)
-
         result = submit_score(
-            make_submit_request(score=100), make_current_user, db_session
+            make_submit_request(score=100), make_current_user(), db_session
         )
 
         assert result["message"] == "Score submitted successfully."
@@ -48,7 +59,12 @@ class TestSubmitScore:
         mock_redis.zadd.assert_not_called()
 
     def test_equal_score_does_not_update_redis(
-        self, db_session, mock_leaderboard_user, mocker,make_submit_request, make_current_user
+        self,
+        db_session,
+        mock_leaderboard_user,
+        mocker,
+        make_submit_request,
+        make_current_user,
     ):
         db_session.query.return_value.filter.return_value.first.return_value = (
             mock_leaderboard_user
@@ -58,25 +74,32 @@ class TestSubmitScore:
         mock_redis.zrevrank.return_value = 0
 
         result = submit_score(
-            make_submit_request(score=100), make_current_user, db_session
+            make_submit_request(score=100), make_current_user(), db_session
         )
 
         assert result["message"] == "Score submitted successfully."
         mock_redis.zadd.assert_not_called()
 
-    def test_db_commit_failure_rolls_back(self, db_session, mock_leaderboard_user,make_submit_request, make_current_user):
+    def test_db_commit_failure_rolls_back(
+        self, db_session, mock_leaderboard_user, make_submit_request, make_current_user
+    ):
         db_session.query.return_value.filter.return_value.first.return_value = (
             mock_leaderboard_user
         )
         db_session.commit.side_effect = Exception("DB error")
 
-        result = submit_score(make_submit_request, make_current_user, db_session)
+        result = submit_score(make_submit_request(), make_current_user(), db_session)
 
         assert result == {"error": "Score submission failed."}
         db_session.rollback.assert_called_once()
 
     def test_redis_failure_returns_error(
-        self, db_session, mock_leaderboard_user, mocker,make_submit_request, make_current_user
+        self,
+        db_session,
+        mock_leaderboard_user,
+        mocker,
+        make_submit_request,
+        make_current_user,
     ):
         db_session.query.return_value.filter.return_value.first.return_value = (
             mock_leaderboard_user
@@ -84,7 +107,7 @@ class TestSubmitScore:
         mock_redis = mocker.patch("controllers.leaderboard.redis_client")
         mock_redis.zscore.side_effect = Exception("Redis down")
 
-        result = submit_score(make_submit_request, make_current_user, db_session)
+        result = submit_score(make_submit_request(), make_current_user(), db_session)
         assert result == {"error": "Score submission failed at leaderboard update."}
 
 

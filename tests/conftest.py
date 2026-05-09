@@ -185,13 +185,21 @@ def register_verified_user(client, get_user):
 
     return _register_verified_user
 
-@pytest.fixture
-def make_submit_request(game_id="game_001", score=100):
-    return SubmitScoreRequest(game_id=game_id, score=score)
 
 @pytest.fixture
-def make_current_user(user_id=1, username="testuser"):
-    return SimpleNamespace(id=user_id, username=username)
+def make_submit_request():
+    def _make_submit_request(game_id="game_001", score=100):
+        return SubmitScoreRequest(game_id=game_id, score=score)
+
+    return _make_submit_request
+
+
+@pytest.fixture
+def make_current_user():
+    def _make_current_user(user_id=1, username="testuser"):
+        return SimpleNamespace(id=user_id, username=username)
+
+    return _make_current_user
 
 
 @pytest.fixture
@@ -201,4 +209,3 @@ def mock_leaderboard_user(mocker):
     user.username = "testuser"
     user.user_code = "test-uuid-123"
     return user
-

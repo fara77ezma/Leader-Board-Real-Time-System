@@ -277,7 +277,7 @@ class TestRemoveUserAvatar:
 
         # Mock Cloudinary delete with error
         mocker.patch(
-            "controllers.users.cloudinary.uploader.destroy",
+            "config.cloudinary.cloudinary.uploader.destroy",
             side_effect=Exception("Cloudinary error"),
         )
 
