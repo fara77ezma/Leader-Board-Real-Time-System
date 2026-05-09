@@ -69,8 +69,7 @@ def fetch_leaderboard(game_id: str, limit: int, db: Session):
         leaderboard = []
         for rank, (user_id, score) in enumerate(top_entries, start=1):
             user = db.query(User).filter(User.id == int(user_id)).first()
-            # TODO if user is None, it means the user was deleted after submitting score — add a placeholder username like "Deleted User" and consider removing their score from Redis
-            if user and user.is_active:
+            if user:
                 leaderboard.append(
                     {"rank": rank, "username": user.username, "score": score}
                 )
@@ -125,3 +124,36 @@ async def get_player_ranks_from_redis(player_id: int) -> dict[str, int]:
             break
 
     return result
+# TODO Think about scalability of this approach if we have millions of games and players 
+def refresh_redis_leaderboard(game_id: str, db: Session):
+    redis_key = f"leaderboard:{game_id}"
+    redis_client.delete(redis_key)  
+
+    entries = db.query(LeaderboardEntry).filter(LeaderboardEntry.game_id == game_id).all()
+    for entry in entries:
+        redis_client.zadd(redis_key, {entry.user_code: entry.score})
+
+    return {"message": "Leaderboard refreshed successfully."}
+
+def refresh_all_leaderboards(db: Session):
+    game_ids = db.query(LeaderboardEntry.game_id).distinct().all()
+    for (game_id,) in game_ids:
+        refresh_redis_leaderboard(game_id, db)
+    return {"message": "All leaderboards refreshed successfully."}
+
+def refresh_user_scores_in_leaderboards(user_id: int, db: Session, game_id: str = None):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return {"error": "User not found."}
+
+    user_code = user.user_code
+    filter_condition = (LeaderboardEntry.user_code == user_code)
+    if game_id:
+        filter_condition = filter_condition & (LeaderboardEntry.game_id == game_id)
+    entries = db.query(LeaderboardEntry).filter(game_id).all()
+
+    for entry in entries:
+        redis_key = f"leaderboard:{entry.game_id}"
+        redis_client.zadd(redis_key, {user_id: entry.score})
+
+    return {"message": "User scores refreshed in leaderboards successfully."}
