@@ -1,7 +1,6 @@
 from config.cloudinary import upload_avatar
 from config.db import get_db
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer
+from fastapi import Depends, HTTPException, Request, status
 from models.response import DifferentUserProfileResponse, UserProfileResponse
 from models.tables import User
 from fastapi import UploadFile
@@ -11,15 +10,20 @@ from controllers.leaderboard import get_player_ranks_from_redis
 from config.cloudinary import delete_avatar
 
 
-security = HTTPBearer()
-
-
 async def get_current_user(
-    db: Session = Depends(get_db), token: str = Depends(security)
+    request: Request, db: Session = Depends(get_db)
 ) -> UserProfileResponse:
     from controllers.auth import verify_token
 
-    payload = verify_token(token.credentials)
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials.",
+        )
+    token = auth.split(" ")[1]
+
+    payload = verify_token(token)
     if "error" in payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=payload["error"]
@@ -44,7 +48,7 @@ async def get_current_user(
 async def get_user_profile(username: str, db: Session) -> DifferentUserProfileResponse:
     user = db.query(User).filter(User.username == username).first()
 
-    if not user:
+    if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
@@ -64,7 +68,7 @@ async def update_user_profile(
 ) -> dict:
     user = db.query(User).filter(User.id == current_user.id).first()
 
-    if not user:
+    if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
@@ -87,7 +91,7 @@ async def update_user_profile(
 async def remove_user_avatar(db: Session, current_user: UserProfileResponse) -> dict:
     user = db.query(User).filter(User.id == current_user.id).first()
 
-    if not user:
+    if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )

@@ -32,9 +32,9 @@ class TestGetCurrentUser:
             return_value={"game_001": {"score": 100, "rank": 1}},
         )
 
-        result = await get_current_user(
-            db=db_session, token=Mock(credentials="valid_token")
-        )
+        mock_request = Mock()
+        mock_request.headers = {"Authorization": "Bearer valid_token"}
+        result = await get_current_user(request=mock_request, db=db_session)
 
         assert result.id == 1
         assert result.username == "testuser"
@@ -49,10 +49,10 @@ class TestGetCurrentUser:
             return_value={"error": "Invalid token"},
         )
 
+        mock_request = Mock()
+        mock_request.headers = {"Authorization": "Bearer invalid_token"}
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(
-                db=db_session, token=Mock(credentials="invalid_token")
-            )
+            await get_current_user(request=mock_request, db=db_session)
 
         assert exc_info.value.status_code == 401
 
@@ -65,8 +65,10 @@ class TestGetCurrentUser:
         )
         db_session.query.return_value.filter.return_value.first.return_value = None
 
+        mock_request = Mock()
+        mock_request.headers = {"Authorization": "Bearer valid_token"}
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(db=db_session, token=Mock(credentials="valid_token"))
+            await get_current_user(request=mock_request, db=db_session)
 
         assert exc_info.value.status_code == 404
 
@@ -85,8 +87,10 @@ class TestGetCurrentUser:
             inactive_user
         )
 
+        mock_request = Mock()
+        mock_request.headers = {"Authorization": "Bearer valid_token"}
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(db=db_session, token=Mock(credentials="valid_token"))
+            await get_current_user(db=db_session, request=mock_request)
 
         assert exc_info.value.status_code == 404
 
@@ -273,11 +277,11 @@ class TestRemoveUserAvatar:
 
         # Mock Cloudinary delete with error
         mocker.patch(
-            "controllers.users.delete_avatar",
+            "config.cloudinary.cloudinary.uploader.destroy",
             side_effect=Exception("Cloudinary error"),
         )
 
         with pytest.raises(Exception):
             result = await remove_user_avatar(db_session, mock_current_user)
             assert result.status_code == 500
-            assert "Failed to delete user avatar" in str(result.detail)
+            assert "Failed to delete avatar. Please try again." in str(result.detail)

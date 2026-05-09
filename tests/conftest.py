@@ -1,13 +1,13 @@
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from unittest.mock import Mock
 import pytest
 from sqlalchemy import text
-from models.request import LoginRequest, RegisterRequest
+from models.request import LoginRequest, RegisterRequest, SubmitScoreRequest
 from models.response import UserProfileResponse
-
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
@@ -35,7 +35,7 @@ def sample_register_request():
 
 @pytest.fixture
 def sample_login_request():
-    return LoginRequest(username="testuser", password="SecurePass123")
+    return LoginRequest(username="testuser", password="Secure@Pass123")
 
 
 @pytest.fixture
@@ -111,12 +111,12 @@ def client(mocker):
     Base.metadata.create_all(bind=engine)
     redis_client.flushdb()
 
-    async def fake_send_verification_email(*args, **kwargs):
+    async def fake_send_auth_email(*args, **kwargs):
         return True
 
     mocker.patch(
-        "controllers.auth.send_verification_email",
-        side_effect=fake_send_verification_email,
+        "controllers.auth.send_auth_email",
+        side_effect=fake_send_auth_email,
     )
     mocker.patch(
         "controllers.auth.fast_mail.send_message",
@@ -184,3 +184,28 @@ def register_verified_user(client, get_user):
         }
 
     return _register_verified_user
+
+
+@pytest.fixture
+def make_submit_request():
+    def _make_submit_request(game_id="game_001", score=100):
+        return SubmitScoreRequest(game_id=game_id, score=score)
+
+    return _make_submit_request
+
+
+@pytest.fixture
+def make_current_user():
+    def _make_current_user(user_id=1, username="testuser"):
+        return SimpleNamespace(id=user_id, username=username)
+
+    return _make_current_user
+
+
+@pytest.fixture
+def mock_leaderboard_user(mocker):
+    user = mocker.Mock()
+    user.id = 1
+    user.username = "testuser"
+    user.user_code = "test-uuid-123"
+    return user

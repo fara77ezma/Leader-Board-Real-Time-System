@@ -14,7 +14,7 @@ def submit_score(
     game_id = request.game_id
     user_id = current_user.id
     existing_user = db.query(User).filter(User.id == current_user.id).first()
-    if not existing_user:
+    if not existing_user or not existing_user.is_active:
         return {"error": "User not found."}
     user_code = existing_user.user_code
 
@@ -27,6 +27,7 @@ def submit_score(
         print("Error during score submission:", e)
         db.rollback()
         return {"error": "Score submission failed."}
+
     # Insert in Redis sorted set for quick leaderboard retrieval
     redis_key = f"leaderboard:{game_id}"
     try:
@@ -34,11 +35,12 @@ def submit_score(
         print("Current best score in Redis:", current_best)
 
         if score <= current_best:
+            rank = redis_client.zrevrank(redis_key, user_id)
             return {
                 "message": "Score submitted successfully.",
                 "best_score": current_best,
                 "score": score,
-                "rank": redis_client.zrevrank(redis_key, user_id) + 1,
+                "rank": rank + 1,
             }
         else:
 
@@ -52,6 +54,7 @@ def submit_score(
             }  # rank is 0-based
     except Exception as e:
         print("Error updating Redis leaderboard:", e)
+        # TODO: Redis failed after SQL commit — add refresh_redis_leaderboard(game_id, db) to resync Redis from SQL, then retry zadd
         return {"error": "Score submission failed at leaderboard update."}
 
 
@@ -66,7 +69,8 @@ def fetch_leaderboard(game_id: str, limit: int, db: Session):
         leaderboard = []
         for rank, (user_id, score) in enumerate(top_entries, start=1):
             user = db.query(User).filter(User.id == int(user_id)).first()
-            if user:
+            # TODO if user is None, it means the user was deleted after submitting score — add a placeholder username like "Deleted User" and consider removing their score from Redis
+            if user and user.is_active:
                 leaderboard.append(
                     {"rank": rank, "username": user.username, "score": score}
                 )

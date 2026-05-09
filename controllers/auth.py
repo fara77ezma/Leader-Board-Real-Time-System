@@ -1,5 +1,4 @@
 import secrets
-import re
 import os
 import uuid
 from sqlite3 import IntegrityError
@@ -50,6 +49,7 @@ async def register_user(
         .first()
     )
     # If any of them exist, raise a conflict error
+    # TODO consider the is_active flag here to allow reusing email/username/phone of deactivated accounts, or add a separate unique constraint on active accounts only
     if existing_user:
         if existing_user.email == email:
             raise HTTPException(
@@ -116,19 +116,12 @@ async def register_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Registration failed. Please try again",
         )
-    try:
-        email_sent = await send_verification_email(
-            email=new_user.email,
-            username=new_user.username,
-            verification_code=new_user.email_verification_code,
-        )
-        if email_sent:
-            print(f"Verification email sent successfully to {email}")
-        else:
-            print(f"Failed to send verification email to {email}")
-    except Exception as e:
-        print(f"Error sending verification email: {e}")
-        email_sent = False
+
+    await send_auth_email(
+        email=new_user.email,
+        username=new_user.username,
+        verification_code=new_user.email_verification_code,
+    )
 
     return RegisterResponse(
         message="Registration successful. Please check your email to verify your account.",
@@ -140,14 +133,13 @@ async def register_user(
 def login_user(request: LoginRequest, db: Session) -> dict:
     existing_user = db.query(User).filter(User.username == request.username).first()
 
-    if not existing_user:
+    if (
+        not existing_user
+        or not verify_password(request.password, existing_user.password_hash)
+        or not existing_user.is_active
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invalid username or password.",
-        )
-    if not verify_password(request.password, existing_user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password.",
         )
     if not existing_user.is_verified:
@@ -191,25 +183,28 @@ def verify_token(token: str) -> dict:
         return {"error": "Invalid token."}
 
 
-async def send_verification_email(
-    email: EmailStr, username: str, verification_code: str
-) -> bool:
+async def send_auth_email(
+    email: EmailStr,
+    username: str,
+    verification_code: str,
+    subject: str = "Email Verification",
+    url_path: str = "verify-email",
+) -> None:
     message = build_email_structure(
         email,
         username,
-        subject="Email Verification",
-        url_path="verify-email",
+        subject=subject,
+        url_path=url_path,
         verification_code=verification_code,
     )
-    print("fast_mail:", fast_mail, " sending to:", email, "message:", message)
-
     try:
         await fast_mail.send_message(message)
-        print(f"Verification email sent to {email}")
-        return True
     except Exception as e:
-        print(f"Failed to send verification email to {email}: {e}")
-        return False
+        print(f"Failed to send auth email ({subject}) to {email}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send {subject.lower()}. please try again.",
+        )
 
 
 def build_email_structure(
@@ -217,11 +212,11 @@ def build_email_structure(
 ) -> MessageSchema:
     base_url = os.getenv("BASE_URL", "http://localhost:5000")
     verification_url = f"{base_url}/auth/{url_path}?code={verification_code}"
-
+    text_content = ""
     # Prepare email content
     if url_path == "verify-email":
         text_content = generate_verification_email_content(username, verification_url)
-    else:
+    elif url_path == "reset-password":
         text_content = generate_password_reset_email_content(username, verification_url)
     message = MessageSchema(
         subject=subject,
@@ -264,7 +259,7 @@ def generate_verification_email_content(username: str, verification_url: str) ->
 def email_verification(code: str, db: Session) -> dict:
     # check if code exists
     user = db.query(User).filter(User.email_verification_code == code).first()
-    if not user:
+    if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid verification code.",
@@ -292,14 +287,14 @@ def email_verification(code: str, db: Session) -> dict:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to verify email.",
+            detail="Failed to verify email. please try again.",
         )
 
 
 async def resend_verification(email: str, db: Session, client_ip: str) -> dict:
     print(f"Resend verification attempt from IP: {client_ip} for email: {email}")
     user = db.query(User).filter(User.email == email.lower().strip()).first()
-    if not user:
+    if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No account found with this email.",
@@ -323,34 +318,19 @@ async def resend_verification(email: str, db: Session, client_ip: str) -> dict:
             detail="Failed to resend verification email.",
         )
 
-    try:
-        email_sent = await send_verification_email(
-            email=user.email,
-            username=user.username,
-            verification_code=user.email_verification_code,
-        )
-        if email_sent:
-            print(f"Verification email resent successfully to {email}")
-            return {"message": "Verification email resent successfully."}
-        else:
-            print(f"Failed to resend verification email to {email}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to resend verification email.",
-            )
-    except Exception as e:
-        print(f"Error resending verification email: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to resend verification email.",
-        )
+    await send_auth_email(
+        email=user.email,
+        username=user.username,
+        verification_code=user.email_verification_code,
+    )
+    return {"message": "Verification email resent successfully."}
 
 
 async def forgot_password(email: str, db: Session, client_ip: str) -> dict:
     print(f"Forgot password attempt from IP: {client_ip} for email: {email}")
 
     user = db.query(User).filter(User.email == email.lower().strip()).first()
-    if not user:
+    if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No account found with this email.",
@@ -373,24 +353,14 @@ async def forgot_password(email: str, db: Session, client_ip: str) -> dict:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to initiate password reset.",
         )
-    # Send password reset email
-    message = build_email_structure(
+    await send_auth_email(
         email=user.email,
         username=user.username,
+        verification_code=user.password_reset_code,
         subject="Password Reset Request",
         url_path="reset-password",
-        verification_code=user.password_reset_code,
     )
-    try:
-        await fast_mail.send_message(message)
-        print(f"Password reset email sent to {email}")
-        return {"message": "Password reset email sent successfully."}
-    except Exception as e:
-        print(f"Failed to send password reset email to {email}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send password reset email.",
-        )
+    return {"message": "Password reset email sent successfully."}
 
 
 def generate_password_reset_email_content(username: str, verification_url: str) -> str:
@@ -414,7 +384,7 @@ def generate_password_reset_email_content(username: str, verification_url: str) 
 
 def reset_password(code: str, new_password: str, db: Session) -> dict:
     user = db.query(User).filter(User.password_reset_code == code).first()
-    if not user:
+    if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid password reset code.",
@@ -426,31 +396,7 @@ def reset_password(code: str, new_password: str, db: Session) -> dict:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Password reset code has expired.",
         )
-    if len(new_password) < 8:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Password must be at least 8 characters long.",
-        )
-    if not re.search(r"[A-Z]", new_password):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Password must contain at least one uppercase letter.",
-        )
-    if not re.search(r"[a-z]", new_password):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Password must contain at least one lowercase letter.",
-        )
-    if not re.search(r"[0-9]", new_password):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Password must contain at least one digit.",
-        )
-    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", new_password):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Password must contain at least one special character.",
-        )
+    RegisterRequest.validate_password(new_password)
 
     user.password_hash = hash_password(new_password)
     user.password_reset_code = None

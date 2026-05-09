@@ -7,9 +7,11 @@ test:
 	docker-compose -f docker-compose.test.yml run --rm -it test-runner
 	docker-compose -f docker-compose.test.yml down -v
 
-# make test-one TARGET=tests/test_auth_integration.py::TestRegister::test_successful_registration_returns_201
+# make test-one TARGET=test_successful_registration_returns_201
 test-one:
-	docker-compose -f docker-compose.test.yml run --rm -it test-runner pytest $(TARGET)
+# -k allows you to specify a substring to match test names, so you can run specific tests without running the entire suite 
+# -vv for more verbose output, -s to disable output capture so you can see print statements in real time (useful for debugging)
+	docker-compose -f docker-compose.test.yml run --rm -it test-runner pytest -s -vv -k  $(TARGET)
 	docker-compose -f docker-compose.test.yml down -v
 
 # Alias for test

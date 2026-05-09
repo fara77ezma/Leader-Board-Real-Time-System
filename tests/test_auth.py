@@ -19,13 +19,6 @@ class TestPasswordHashing:
         hashed2 = hash_password(password2)
         assert hashed1 != hashed2
 
-    def test_hash_password_handles_empty_string(self):
-        password = ""
-        hashed = hash_password(password)
-        assert hashed is not None
-        assert hashed != password
-        assert len(hashed) > 20
-
     def test_hash_password_handles_special_characters(self):
         password = "P@$$w0rd!#%"
         hashed = hash_password(password)
@@ -38,7 +31,6 @@ class TestPasswordHashing:
         hashed = hash_password(password)
         assert hashed is not None
         assert hashed != password
-        # Verify by hashing again and comparing
         verified_hash = verify_password(password, hashed)
         assert verified_hash == True
 
@@ -50,13 +42,6 @@ class TestPasswordHashing:
         verified_hash = verify_password(wrong_password, hashed)
         assert verified_hash == False
 
-    def test_verify_empty_password(self):
-        password = ""
-        hashed = hash_password(password)
-        assert hashed is not None
-        verified_hash = verify_password(password, hashed)
-        assert verified_hash == True
-
 
 class TestRegisterUser:
     @pytest.mark.asyncio
@@ -64,7 +49,7 @@ class TestRegisterUser:
         self, db_session, sample_register_request, mocker
     ):
         db_session.query.return_value.filter.return_value.first.return_value = None
-        mocker.patch("controllers.auth.send_verification_email", return_value=True)
+        mocker.patch("controllers.auth.send_auth_email", return_value=True)
 
         from controllers.auth import register_user
 

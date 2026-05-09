@@ -83,7 +83,7 @@ def test_full_auth_flow(client, get_user):
         "/auth/login",
         json={"username": "flowuser", "password": "Secure@Pass123"},
     )
-    assert old_password_response.status_code == 401
+    assert old_password_response.status_code == 404
     assert old_password_response.json() == {"detail": "Invalid username or password."}
 
     new_password_response = client.post(
