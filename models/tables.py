@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, true, false
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, true, false,ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -39,7 +39,7 @@ class LeaderboardEntry(Base):
     __tablename__ = "leaderboard"
 
     id = Column(Integer, primary_key=True)
-    user_code = Column(String(36), nullable=False)
+    user_code = Column(String(36),ForeignKey("users.user_code", ondelete="CASCADE"), nullable=False)
     score = Column(Integer, nullable=False)
     game_id = Column(String(50), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

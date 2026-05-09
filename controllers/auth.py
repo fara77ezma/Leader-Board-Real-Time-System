@@ -49,23 +49,14 @@ async def register_user(
         .first()
     )
     # If any of them exist, raise a conflict error
-    # TODO consider the is_active flag here to allow reusing email/username/phone of deactivated accounts, or add a separate unique constraint on active accounts only
     if existing_user:
-        if existing_user.email == email:
+        if existing_user.email == email or existing_user.username == username or existing_user.phone_number == phone_number: 
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="An account with this email already exists",
+                detail="An account with this credentials already exists",
             )
-        elif existing_user.username == username:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="An account with this username already exists",
-            )
-        elif existing_user.phone_number == phone_number:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="An account with this phone number already exists",
-            )
+      
+    
 
     verification_code = secrets.token_urlsafe(32)
     verification_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
@@ -136,7 +127,6 @@ def login_user(request: LoginRequest, db: Session) -> dict:
     if (
         not existing_user
         or not verify_password(request.password, existing_user.password_hash)
-        or not existing_user.is_active
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -147,8 +137,20 @@ def login_user(request: LoginRequest, db: Session) -> dict:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Email not verified. Please verify your email before logging in.",
         )
+
+    if not existing_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "ACCOUNT_INACTIVE",
+                "message": "Your account is inactive.",
+                "redirect_to": "/reactivate"
+            }
+        )
     token = create_token(existing_user.id, existing_user.username)
-    return {"message": "Login successful.", "token": token}
+
+    
+    return {"message":  "Login successful.", "token": token}
 
 
 def hash_password(password: str) -> str:
@@ -259,7 +261,7 @@ def generate_verification_email_content(username: str, verification_url: str) ->
 def email_verification(code: str, db: Session) -> dict:
     # check if code exists
     user = db.query(User).filter(User.email_verification_code == code).first()
-    if not user or not user.is_active:
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid verification code.",
@@ -294,7 +296,7 @@ def email_verification(code: str, db: Session) -> dict:
 async def resend_verification(email: str, db: Session, client_ip: str) -> dict:
     print(f"Resend verification attempt from IP: {client_ip} for email: {email}")
     user = db.query(User).filter(User.email == email.lower().strip()).first()
-    if not user or not user.is_active:
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No account found with this email.",
@@ -411,3 +413,38 @@ def reset_password(code: str, new_password: str, db: Session) -> dict:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to reset password.",
         )
+
+def reactivate_account(email: str,password:str, db: Session,client_ip:str) -> dict:
+    print(f"Reactivate account attempt from IP: {client_ip} for email: {email}")
+    user = db.query(User).filter(User.email == email.lower().strip()).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email.",
+        )
+    if user.is_active:
+        return {"message": "Account is already active."}
+    if not verify_password(password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid password.",
+        )
+    if not user.is_verified:
+        raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Email not verified. Please verify your email before reactivating your account.",
+            )
+    user.is_active = True
+    try:
+        db.commit()
+        db.refresh(user)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to reactivate account.",
+        )
+
+    token = create_token(user.id, user.username)
+    return {"message": "Account reactivated successfully.", "token": token}
+    

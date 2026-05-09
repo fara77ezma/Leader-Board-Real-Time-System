@@ -1,13 +1,14 @@
 from config.cloudinary import upload_avatar
 from config.db import get_db
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, UploadFile, status
 from models.response import DifferentUserProfileResponse, UserProfileResponse
 from models.tables import User
-from fastapi import UploadFile
 from sqlalchemy.orm import Session
 from urllib.parse import quote
 from controllers.leaderboard import get_player_ranks_from_redis
 from config.cloudinary import delete_avatar
+from config.redis import redis_client
+
 
 
 async def get_current_user(
@@ -61,7 +62,7 @@ async def get_user_profile(username: str, db: Session) -> DifferentUserProfileRe
     )
 
 
-async def update_user_profile(
+async def update_user_avatar(
     db: Session,
     current_user: UserProfileResponse,
     avatar_file: UploadFile,
@@ -90,11 +91,6 @@ async def update_user_profile(
 
 async def remove_user_avatar(db: Session, current_user: UserProfileResponse) -> dict:
     user = db.query(User).filter(User.id == current_user.id).first()
-
-    if not user or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
     await delete_avatar(user.username)
     user.avatar_url = generate_default_avatar(username=user.username)
     try:
@@ -115,3 +111,39 @@ def generate_default_avatar(username: str) -> str:
 
     encoded_name = quote(username)
     return f"https://ui-avatars.com/api/?name={encoded_name}&size=200&background=random&color=fff&bold=true"
+
+async def deactivate_user_account(db: Session, current_user: UserProfileResponse) -> dict:
+    user = db.query(User).filter(User.id == current_user.id).first()
+    user.is_active = False
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to deactivate user account.",
+        )
+    keys = redis_client.keys("leaderboard:*")
+    for key in keys:
+        redis_client.zrem(key, str(current_user.id))
+    return {"message": "account deactivated successfully."}
+
+
+async def delete_user_account(db: Session, current_user: UserProfileResponse) -> dict:
+    user = db.query(User).filter(User.id == current_user.id).first()
+    
+    try:
+        db.delete(user)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete user account.",
+        )
+    keys = redis_client.keys("leaderboard:*")
+    for key in keys:
+        redis_client.zrem(key, str(current_user.id))
+
+
+    return {"message": "account deleted successfully."}

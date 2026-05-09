@@ -84,3 +84,16 @@ def reset_password(
     db: Session = Depends(get_db),
 ):
     return auth.reset_password(code, new_password, db)
+
+@router.post(
+    "/reactivate-account",
+    dependencies=[Depends(RateLimiter(times=5, seconds=60))],
+)
+async def reactivate_account(
+    request: Request,
+    email: str,
+    password: str,
+    db: Session = Depends(get_db),
+):
+    client_ip = request.client.host
+    return await auth.reactivate_account(email,password, db, client_ip)
