@@ -1,9 +1,10 @@
+from sqlalchemy import func
+
 from models.request import SubmitScoreRequest
 from models.response import UserProfileResponse
 from models.tables import LeaderboardEntry, User
 from sqlalchemy.orm import Session
-from config.redis import redis_client
-from config.redis import get_async_redis
+from config.redis import redis_client, get_async_redis
 
 
 def submit_score(
@@ -54,12 +55,21 @@ def submit_score(
             }  # rank is 0-based
     except Exception as e:
         print("Error updating Redis leaderboard:", e)
-        # TODO: Redis failed after SQL commit — add refresh_redis_leaderboard(game_id, db) to resync Redis from SQL, then retry zadd
+        refresh_redis_leaderboard(game_id, db)
         return {"error": "Score submission failed at leaderboard update."}
 
 
 def fetch_leaderboard(game_id: str, limit: int, db: Session):
     # Logic to fetch the leaderboard for a specific game
+    entries = (
+        db.query(LeaderboardEntry).filter(LeaderboardEntry.game_id == game_id).all()
+    )
+    users = (
+        db.query(User)
+        .filter(User.user_code.in_([entry.user_code for entry in entries]))
+        .all()
+    )
+    user_id_username_map = {user.id: user.username for user in users}
     redis_key = f"leaderboard:{game_id}"
     try:
         top_entries = redis_client.zrevrange(
@@ -68,10 +78,13 @@ def fetch_leaderboard(game_id: str, limit: int, db: Session):
         print("Top entries from Redis:", top_entries)
         leaderboard = []
         for rank, (user_id, score) in enumerate(top_entries, start=1):
-            user = db.query(User).filter(User.id == int(user_id)).first()
-            if user:
+            if user_id_username_map.get(user_id):
                 leaderboard.append(
-                    {"rank": rank, "username": user.username, "score": score}
+                    {
+                        "rank": rank,
+                        "username": user_id_username_map.get(user_id),
+                        "score": score,
+                    }
                 )
         return {"game_id": game_id, "leaderboard": leaderboard}
     except Exception as e:
@@ -117,23 +130,39 @@ async def get_player_ranks_from_redis(player_id: int) -> dict[str, int]:
 
             if rank is not None:
                 game_id = key[len("leaderboard:") :]
-                current_score = redis_client.zscore(key, str(player_id)) or 0
+                current_score = (
+                    await async_redis_client.zscore(key, str(player_id)) or 0
+                )
                 result[game_id] = {"score": current_score, "rank": rank + 1}
 
         if cursor == 0:
             break
 
     return result
-# TODO Think about scalability of this approach if we have millions of games and players 
+
+
 def refresh_redis_leaderboard(game_id: str, db: Session):
     redis_key = f"leaderboard:{game_id}"
-    redis_client.delete(redis_key)  
+    redis_client.delete(redis_key)
 
-    entries = db.query(LeaderboardEntry).filter(LeaderboardEntry.game_id == game_id).all()
-    for entry in entries:
-        redis_client.zadd(redis_key, {entry.user_code: entry.score})
+    entries = (
+        db.query(LeaderboardEntry).filter(LeaderboardEntry.game_id == game_id).all()
+    )
+    users = (
+        db.query(User)
+        .filter(User.user_code.in_([entry.user_code for entry in entries]))
+        .all()
+    )
+    user_code_to_id = {user.user_code: user.id for user in users}
+    for entry in range(0, len(entries), 500):  # Batch processing to reduce Redis calls
+        batch_entries = {
+            user_code_to_id.get(entry.user_code): entry.score
+            for entry in entries[entry : entry + 500]
+        }
+        redis_client.zadd(redis_key, batch_entries)
 
     return {"message": "Leaderboard refreshed successfully."}
+
 
 def refresh_all_leaderboards(db: Session):
     game_ids = db.query(LeaderboardEntry.game_id).distinct().all()
@@ -141,19 +170,28 @@ def refresh_all_leaderboards(db: Session):
         refresh_redis_leaderboard(game_id, db)
     return {"message": "All leaderboards refreshed successfully."}
 
+
 def refresh_user_scores_in_leaderboards(user_id: int, db: Session, game_id: str = None):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return {"error": "User not found."}
 
     user_code = user.user_code
-    filter_condition = (LeaderboardEntry.user_code == user_code)
+    filter_condition = LeaderboardEntry.user_code == user_code
     if game_id:
         filter_condition = filter_condition & (LeaderboardEntry.game_id == game_id)
-    entries = db.query(LeaderboardEntry).filter(game_id).all()
+    best_scores = (
+        db.query(
+            LeaderboardEntry.game_id,
+            func.max(LeaderboardEntry.score).label("best_score"),
+        )
+        .filter(filter_condition)
+        .group_by(LeaderboardEntry.game_id)
+        .all()
+    )
 
-    for entry in entries:
+    for entry in best_scores:
         redis_key = f"leaderboard:{entry.game_id}"
-        redis_client.zadd(redis_key, {user_id: entry.score})
+        redis_client.zadd(redis_key, {user_id: entry.best_score})
 
     return {"message": "User scores refreshed in leaderboards successfully."}

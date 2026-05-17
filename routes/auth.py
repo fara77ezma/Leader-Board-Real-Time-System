@@ -1,15 +1,14 @@
 from controllers import auth
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status, Request
 from config.db import get_db
 from sqlalchemy.orm import Session
 from models.request import LoginRequest, RegisterRequest
 from models.response import RegisterResponse
 from fastapi_limiter.depends import RateLimiter
-from fastapi import status, Request
-
 
 router = APIRouter(
     prefix="/auth",
+    tags=["Authentication"],
 )
 
 
@@ -85,6 +84,7 @@ def reset_password(
 ):
     return auth.reset_password(code, new_password, db)
 
+
 @router.post(
     "/reactivate-account",
     dependencies=[Depends(RateLimiter(times=5, seconds=60))],
@@ -96,4 +96,4 @@ async def reactivate_account(
     db: Session = Depends(get_db),
 ):
     client_ip = request.client.host
-    return await auth.reactivate_account(email,password, db, client_ip)
+    return await auth.reactivate_account(email, password, db, client_ip)

@@ -1,3 +1,5 @@
+from fastapi.security import HTTPAuthorizationCredentials
+
 from config.cloudinary import upload_avatar
 from config.db import get_db
 from fastapi import Depends, HTTPException, Request, UploadFile, status
@@ -10,20 +12,12 @@ from config.cloudinary import delete_avatar
 from config.redis import redis_client
 
 
-
 async def get_current_user(
-    request: Request, db: Session = Depends(get_db)
+    credentials: HTTPAuthorizationCredentials, db: Session = Depends(get_db)
 ) -> UserProfileResponse:
     from controllers.auth import verify_token
 
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials.",
-        )
-    token = auth.split(" ")[1]
-
+    token = credentials.credentials
     payload = verify_token(token)
     if "error" in payload:
         raise HTTPException(
@@ -43,6 +37,7 @@ async def get_current_user(
         games=games,
         is_verified=user.is_verified,
         created_at=user.created_at,
+        is_admin=user.is_admin,
     )
 
 
@@ -112,7 +107,10 @@ def generate_default_avatar(username: str) -> str:
     encoded_name = quote(username)
     return f"https://ui-avatars.com/api/?name={encoded_name}&size=200&background=random&color=fff&bold=true"
 
-async def deactivate_user_account(db: Session, current_user: UserProfileResponse) -> dict:
+
+async def deactivate_user_account(
+    db: Session, current_user: UserProfileResponse
+) -> dict:
     user = db.query(User).filter(User.id == current_user.id).first()
     user.is_active = False
     try:
@@ -131,7 +129,7 @@ async def deactivate_user_account(db: Session, current_user: UserProfileResponse
 
 async def delete_user_account(db: Session, current_user: UserProfileResponse) -> dict:
     user = db.query(User).filter(User.id == current_user.id).first()
-    
+
     try:
         db.delete(user)
         db.commit()
@@ -144,6 +142,5 @@ async def delete_user_account(db: Session, current_user: UserProfileResponse) ->
     keys = redis_client.keys("leaderboard:*")
     for key in keys:
         redis_client.zrem(key, str(current_user.id))
-
 
     return {"message": "account deleted successfully."}

@@ -2,7 +2,7 @@ import secrets
 import os
 import uuid
 from sqlite3 import IntegrityError
-from controllers.users import generate_default_avatar
+from controllers import users
 from fastapi import status, HTTPException
 from models.request import LoginRequest, RegisterRequest
 from models.response import RegisterResponse
@@ -36,7 +36,7 @@ async def register_user(
     email = request.email.lower().strip()
     username = request.username.strip()
     phone_number = request.phone_number.strip()
-    avatar_url = generate_default_avatar(username)
+    avatar_url = users.generate_default_avatar(username)
 
     # Check if email or username or phone number already exists
     existing_user = (
@@ -50,13 +50,15 @@ async def register_user(
     )
     # If any of them exist, raise a conflict error
     if existing_user:
-        if existing_user.email == email or existing_user.username == username or existing_user.phone_number == phone_number: 
+        if (
+            existing_user.email == email
+            or existing_user.username == username
+            or existing_user.phone_number == phone_number
+        ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="An account with this credentials already exists",
             )
-      
-    
 
     verification_code = secrets.token_urlsafe(32)
     verification_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
@@ -124,9 +126,8 @@ async def register_user(
 def login_user(request: LoginRequest, db: Session) -> dict:
     existing_user = db.query(User).filter(User.username == request.username).first()
 
-    if (
-        not existing_user
-        or not verify_password(request.password, existing_user.password_hash)
+    if not existing_user or not verify_password(
+        request.password, existing_user.password_hash
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -144,13 +145,12 @@ def login_user(request: LoginRequest, db: Session) -> dict:
             detail={
                 "code": "ACCOUNT_INACTIVE",
                 "message": "Your account is inactive.",
-                "redirect_to": "/reactivate"
-            }
+                "redirect_to": "/reactivate",
+            },
         )
     token = create_token(existing_user.id, existing_user.username)
 
-    
-    return {"message":  "Login successful.", "token": token}
+    return {"message": "Login successful.", "token": token}
 
 
 def hash_password(password: str) -> str:
@@ -414,7 +414,8 @@ def reset_password(code: str, new_password: str, db: Session) -> dict:
             detail="Failed to reset password.",
         )
 
-def reactivate_account(email: str,password:str, db: Session,client_ip:str) -> dict:
+
+def reactivate_account(email: str, password: str, db: Session, client_ip: str) -> dict:
     print(f"Reactivate account attempt from IP: {client_ip} for email: {email}")
     user = db.query(User).filter(User.email == email.lower().strip()).first()
     if not user:
@@ -431,9 +432,9 @@ def reactivate_account(email: str,password:str, db: Session,client_ip:str) -> di
         )
     if not user.is_verified:
         raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Email not verified. Please verify your email before reactivating your account.",
-            )
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email not verified. Please verify your email before reactivating your account.",
+        )
     user.is_active = True
     try:
         db.commit()
@@ -447,4 +448,3 @@ def reactivate_account(email: str,password:str, db: Session,client_ip:str) -> di
 
     token = create_token(user.id, user.username)
     return {"message": "Account reactivated successfully.", "token": token}
-    

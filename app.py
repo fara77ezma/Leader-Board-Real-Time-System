@@ -1,12 +1,11 @@
 from fastapi import FastAPI
 from models.tables import Base
-from routes import auth, users, leaderboard
+from routes import auth, users, leaderboard, game
 from config.db import engine
 from config.redis import close_sync_redis, close_async_redis, get_async_redis
 from fastapi.security import HTTPBearer
 
 from fastapi_limiter import FastAPILimiter
-
 
 app = FastAPI()
 
@@ -32,6 +31,7 @@ def root():
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(leaderboard.router)
+app.include_router(game.router)
 
 
 @app.on_event("shutdown")

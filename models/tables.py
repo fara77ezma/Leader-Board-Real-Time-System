@@ -1,7 +1,15 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, true, false,ForeignKey
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Boolean,
+    true,
+    false,
+    ForeignKey,
+)
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
-
 
 # 1. Create a SINGLE "Base" instance.
 # Think of this as a shared "Registry" or "Catalog."
@@ -31,6 +39,7 @@ class User(Base):
     password_reset_code = Column(String(255), unique=True, nullable=True)
     password_reset_expiry = Column(DateTime(timezone=True), nullable=True)
     avatar_url = Column(String(255), nullable=True)
+    is_admin = Column(Boolean, server_default=false())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -39,8 +48,38 @@ class LeaderboardEntry(Base):
     __tablename__ = "leaderboard"
 
     id = Column(Integer, primary_key=True)
-    user_code = Column(String(36),ForeignKey("users.user_code", ondelete="CASCADE"), nullable=False)
+    user_code = Column(
+        String(36), ForeignKey("users.user_code", ondelete="CASCADE"), nullable=False
+    )
     score = Column(Integer, nullable=False)
     game_id = Column(String(50), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Game(Base):
+    __tablename__ = "game"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(50), unique=True, nullable=False)
+    description = Column(String(255), nullable=True)
+    is_active = Column(Boolean, nullable=False, server_default=true())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# TODO know how docker read the new table and update it in the database without deleting the old one and losing data
+# TODO know when docker creates a new table
+class GameSession(Base):
+    __tablename__ = "game_sessions"
+
+    id = Column(Integer, primary_key=True)
+    user_code = Column(
+        String(36), ForeignKey("users.user_code", ondelete="CASCADE"), nullable=False
+    )
+    game_id = Column(
+        String(50), ForeignKey("game.name", ondelete="CASCADE"), nullable=False
+    )
+    score = Column(Integer, nullable=False)
+    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    ended_at = Column(DateTime(timezone=True), nullable=True)
