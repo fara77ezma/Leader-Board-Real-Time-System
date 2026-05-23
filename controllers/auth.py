@@ -6,7 +6,7 @@ from controllers import users
 from fastapi import status, HTTPException
 from models.request import LoginRequest, RegisterRequest
 from models.response import RegisterResponse
-from models.tables import User
+from models.tables import User, RefreshToken
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 import jwt
@@ -148,6 +148,7 @@ def login_user(request: LoginRequest, db: Session) -> dict:
                 "redirect_to": "/reactivate",
             },
         )
+
     token = create_token(existing_user.id, existing_user.username)
 
     return {"message": "Login successful.", "token": token}
@@ -448,3 +449,71 @@ def reactivate_account(email: str, password: str, db: Session, client_ip: str) -
 
     token = create_token(user.id, user.username)
     return {"message": "Account reactivated successfully.", "token": token}
+
+
+async def require_admin(credentials, db):
+    current_user = await users.get_current_user(credentials=credentials, db=db)
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required.",
+        )
+
+
+def generate_refresh_token(user_id: int, db: Session) -> str:
+    refresh_token = secrets.token_urlsafe(64)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+
+    new_token = RefreshToken(
+        user_id=user_id, refresh_token=refresh_token, expires_at=expires_at
+    )
+    try:
+        db.add(new_token)
+        db.commit()
+        db.refresh(new_token)
+        return refresh_token
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate refresh token.",
+        )
+
+
+def revoke_refresh_token(db: Session, user_id: int) -> None:
+    user_refresh_tokens = (
+        db.query(RefreshToken)
+        .filter(RefreshToken.user_id == user_id & RefreshToken.is_revoked)
+        .all()
+    )
+    for token in user_refresh_tokens:
+        token.is_revoked = True
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to revoke refresh tokens.",
+        )
+
+
+def refresh_access_token(refresh_token: str, db: Session) -> dict:
+    token_record = (
+        db.query(RefreshToken)
+        .filter(
+            RefreshToken.refresh_token
+            == refresh_token & RefreshToken.is_revoked
+            == False & RefreshToken.expires_at
+            > datetime.now(timezone.utc),
+        )
+        .first()
+    )
+    if not token_record:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token.",
+        )
+    user = db.query(User).filter(User.id == token_record.user_id).first()
+    token = create_token(user.id, user.username)
+    return {"token": token}

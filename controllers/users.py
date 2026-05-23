@@ -2,7 +2,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from config.cloudinary import upload_avatar
 from config.db import get_db
-from fastapi import Depends, HTTPException, Request, UploadFile, status
+from fastapi import Depends, HTTPException, UploadFile, status
 from models.response import DifferentUserProfileResponse, UserProfileResponse
 from models.tables import User
 from sqlalchemy.orm import Session
@@ -28,7 +28,9 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
-    games = await get_player_ranks_from_redis(player_id=user.id)
+    games = await get_player_ranks_from_redis(
+        db=db, player_id=user.id, player_code=user.user_code
+    )
 
     return UserProfileResponse(
         id=payload["user_id"],
@@ -48,7 +50,9 @@ async def get_user_profile(username: str, db: Session) -> DifferentUserProfileRe
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
-    games = await get_player_ranks_from_redis(player_id=user.id)
+    games = await get_player_ranks_from_redis(
+        db=db, player_id=user.id, player_code=user.user_code
+    )
 
     return DifferentUserProfileResponse(
         username=user.username,

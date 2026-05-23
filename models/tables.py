@@ -52,7 +52,9 @@ class LeaderboardEntry(Base):
         String(36), ForeignKey("users.user_code", ondelete="CASCADE"), nullable=False
     )
     score = Column(Integer, nullable=False)
-    game_id = Column(String(50), nullable=False)
+    game_name = Column(
+        String(50), ForeignKey("game.name", ondelete="CASCADE"), nullable=False
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -68,18 +70,14 @@ class Game(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
-# TODO know how docker read the new table and update it in the database without deleting the old one and losing data
-# TODO know when docker creates a new table
-class GameSession(Base):
-    __tablename__ = "game_sessions"
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
 
     id = Column(Integer, primary_key=True)
-    user_code = Column(
-        String(36), ForeignKey("users.user_code", ondelete="CASCADE"), nullable=False
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    game_id = Column(
-        String(50), ForeignKey("game.name", ondelete="CASCADE"), nullable=False
-    )
-    score = Column(Integer, nullable=False)
-    started_at = Column(DateTime(timezone=True), server_default=func.now())
-    ended_at = Column(DateTime(timezone=True), nullable=True)
+    refresh_token = Column(String(255), unique=True, nullable=False)
+    is_revoked = Column(Boolean, nullable=False, server_default=false())
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

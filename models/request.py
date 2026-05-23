@@ -53,7 +53,7 @@ class LoginRequest(BaseModel):
 
 
 class SubmitScoreRequest(BaseModel):
-    game_id: str
+    game_name: str
     score: int
 
 

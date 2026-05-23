@@ -127,7 +127,7 @@ class TestFetchLeaderboard:
 
         result = fetch_leaderboard("game_001", limit=10, db=db_session)
 
-        assert result["game_id"] == "game_001"
+        assert result["game_name"] == "game_001"
         assert len(result["leaderboard"]) == 2
         assert result["leaderboard"][0] == {
             "rank": 1,
@@ -175,7 +175,7 @@ class TestFetchLeaderboard:
 
         result = fetch_leaderboard("game_001", limit=10, db=db_session)
 
-        assert result == {"game_id": "game_001", "leaderboard": []}
+        assert result == {"game_name": "game_001", "leaderboard": []}
 
     def test_redis_failure_returns_error(self, db_session, mocker):
         mock_redis = mocker.patch("controllers.leaderboard.redis_client")
