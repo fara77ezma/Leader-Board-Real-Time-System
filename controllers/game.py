@@ -6,7 +6,6 @@ from models.tables import Game
 
 def create_new_game(request: CreateGameRequest, db: Session):
     game = db.query(Game).filter(Game.name == request.name).first()
-    print(f"Checking if game with name '{request.name}' exists: {game is not None}")
     if game:
         if game.is_active:
             raise HTTPException(
@@ -27,14 +26,12 @@ def create_new_game(request: CreateGameRequest, db: Session):
 
     else:
         try:
-            print(f"Creating new game with name: {request.name}")
             new_game = Game(
                 name=request.name,
                 description=request.description,
                 is_active=request.is_active,
             )
             db.add(new_game)
-            print(f"New game added to session: {new_game}")
             db.commit()
             return {"message": "New game created successfully."}
         except Exception as e:

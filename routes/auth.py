@@ -1,8 +1,9 @@
+from fastapi.security import HTTPAuthorizationCredentials,HTTPBearer
 from controllers import auth
 from fastapi import APIRouter, Depends, status, Request
 from config.db import get_db
 from sqlalchemy.orm import Session
-from models.request import LoginRequest, RegisterRequest
+from models.request import LoginRequest, RefreshTokenRequest, RegisterRequest
 from models.response import RegisterResponse
 from fastapi_limiter.depends import RateLimiter
 
@@ -11,6 +12,7 @@ router = APIRouter(
     tags=["Authentication"],
 )
 
+security = HTTPBearer()
 
 @router.post(
     "/register",
@@ -19,15 +21,12 @@ router = APIRouter(
     dependencies=[Depends(RateLimiter(times=5, seconds=60))],
 )
 async def register(
-    request: Request,
     request_data: RegisterRequest,
     db: Session = Depends(get_db),
 ) -> RegisterResponse:
-    client_ip = request.client.host
     return await auth.register_user(
         request=request_data,
         db=db,
-        client_ip=client_ip,
     )
 
 
@@ -52,12 +51,10 @@ def verify_email(code: str, db: Session = Depends(get_db)):
     dependencies=[Depends(RateLimiter(times=5, seconds=60))],
 )
 async def resend_verification_email(
-    request: Request,
     email: str,
     db: Session = Depends(get_db),
 ):
-    client_ip = request.client.host
-    return await auth.resend_verification(email, db, client_ip)
+    return await auth.resend_verification(email, db)
 
 
 @router.post(
@@ -65,12 +62,10 @@ async def resend_verification_email(
     dependencies=[Depends(RateLimiter(times=5, seconds=60))],
 )
 async def forgot_password(
-    request: Request,
     email: str,
     db: Session = Depends(get_db),
 ):
-    client_ip = request.client.host
-    return await auth.forgot_password(email, db, client_ip)
+    return await auth.forgot_password(email, db)
 
 
 @router.post(
@@ -84,16 +79,15 @@ def reset_password(
 ):
     return auth.reset_password(code, new_password, db)
 
+@router.post("/logout")
+def logout(request: RefreshTokenRequest, db: Session = Depends(get_db)):
+    return auth.revoke_refresh_token(db = db , refresh_token= request.refresh_token)
 
-@router.post(
-    "/reactivate-account",
-    dependencies=[Depends(RateLimiter(times=5, seconds=60))],
-)
-async def reactivate_account(
-    request: Request,
-    email: str,
-    password: str,
-    db: Session = Depends(get_db),
-):
-    client_ip = request.client.host
-    return await auth.reactivate_account(email, password, db, client_ip)
+@router.post("/refresh-token")
+def refresh_access_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
+    return auth.refresh_access_token(refresh_token = request.refresh_token, db =db )
+
+@router.get("/delete-expired-tokens")
+async def delete_expired_tokens(db: Session = Depends(get_db), credentials: HTTPAuthorizationCredentials = Depends(security)):
+    await auth.require_admin(db=db,credentials=credentials)
+    return auth.delete_expired_refresh_tokens(db)

@@ -70,3 +70,12 @@ async def refresh_user_scores(
     return leaderboard.refresh_user_scores_in_leaderboards(
         user_id=user_id, game_name=game_name, db=db
     )
+
+@router.get("/api/get-leaderboard/{game_name}/around-me")
+async def get_around_me(
+    game_name: str,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    current_user = await users.get_current_user(credentials=credentials, db=db)
+    return leaderboard.fetch_around_me(game_name=game_name, current_user=current_user, db=db)

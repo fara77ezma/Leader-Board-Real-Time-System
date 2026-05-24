@@ -27,10 +27,8 @@ ALGORITHM = os.getenv("ALGORITHM")
 
 
 async def register_user(
-    request: RegisterRequest, db: Session, client_ip: str
+    request: RegisterRequest, db: Session
 ) -> RegisterResponse:
-
-    print(f"Registration attempt from IP: {client_ip}")
     # Normalize input data
     # emails are case-insensitive
     email = request.email.lower().strip()
@@ -90,11 +88,7 @@ async def register_user(
 
         # reload the instance from the database to get any defaults set by the DB
         db.refresh(new_user)
-
-        print(
-            "User registered successfully.",
-            f"user_name : {new_user.username}, email: {new_user.email}",
-        )
+        
     except IntegrityError as e:
         db.rollback()
         # This catches database constraint violations
@@ -149,9 +143,10 @@ def login_user(request: LoginRequest, db: Session) -> dict:
             },
         )
 
-    token = create_token(existing_user.id, existing_user.username)
+    token = generate_token(existing_user.id, existing_user.username)
+    refresh_token = generate_refresh_token(existing_user.id, db=db)
 
-    return {"message": "Login successful.", "token": token}
+    return {"message": "Login successful.", "token": token, "refresh_token": refresh_token}
 
 
 def hash_password(password: str) -> str:
@@ -163,7 +158,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_token(user_id: int, username: str) -> str:
+def generate_token(user_id: int, username: str) -> str:
     """Create a simple JWT token"""
     payload = {
         "user_id": user_id,
@@ -178,12 +173,17 @@ def create_token(user_id: int, username: str) -> str:
 def verify_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        print("Decoded JWT payload:", payload)
         return payload
     except jwt.ExpiredSignatureError:
-        return {"error": "Token has expired."}
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired. Please log in again.",
+        )
     except jwt.InvalidTokenError:
-        return {"error": "Invalid token."}
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token. Please log in again.",
+        )
 
 
 async def send_auth_email(
@@ -203,7 +203,6 @@ async def send_auth_email(
     try:
         await fast_mail.send_message(message)
     except Exception as e:
-        print(f"Failed to send auth email ({subject}) to {email}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send {subject.lower()}. please try again.",
@@ -294,8 +293,7 @@ def email_verification(code: str, db: Session) -> dict:
         )
 
 
-async def resend_verification(email: str, db: Session, client_ip: str) -> dict:
-    print(f"Resend verification attempt from IP: {client_ip} for email: {email}")
+async def resend_verification(email: str, db: Session) -> dict:
     user = db.query(User).filter(User.email == email.lower().strip()).first()
     if not user:
         raise HTTPException(
@@ -329,9 +327,7 @@ async def resend_verification(email: str, db: Session, client_ip: str) -> dict:
     return {"message": "Verification email resent successfully."}
 
 
-async def forgot_password(email: str, db: Session, client_ip: str) -> dict:
-    print(f"Forgot password attempt from IP: {client_ip} for email: {email}")
-
+async def forgot_password(email: str, db: Session) -> dict:
     user = db.query(User).filter(User.email == email.lower().strip()).first()
     if not user or not user.is_active:
         raise HTTPException(
@@ -404,7 +400,9 @@ def reset_password(code: str, new_password: str, db: Session) -> dict:
     user.password_hash = hash_password(new_password)
     user.password_reset_code = None
     user.password_reset_expiry = None
+    
     try:
+        db.query(RefreshToken).filter((RefreshToken.user_id == user.id) & (RefreshToken.is_revoked == False)).update({"is_revoked": True})
         db.commit()
         db.refresh(user)
         return {"message": "Password reset successfully."}
@@ -414,42 +412,7 @@ def reset_password(code: str, new_password: str, db: Session) -> dict:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to reset password.",
         )
-
-
-def reactivate_account(email: str, password: str, db: Session, client_ip: str) -> dict:
-    print(f"Reactivate account attempt from IP: {client_ip} for email: {email}")
-    user = db.query(User).filter(User.email == email.lower().strip()).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No account found with this email.",
-        )
-    if user.is_active:
-        return {"message": "Account is already active."}
-    if not verify_password(password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid password.",
-        )
-    if not user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email not verified. Please verify your email before reactivating your account.",
-        )
-    user.is_active = True
-    try:
-        db.commit()
-        db.refresh(user)
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to reactivate account.",
-        )
-
-    token = create_token(user.id, user.username)
-    return {"message": "Account reactivated successfully.", "token": token}
-
+    
 
 async def require_admin(credentials, db):
     current_user = await users.get_current_user(credentials=credentials, db=db)
@@ -480,32 +443,35 @@ def generate_refresh_token(user_id: int, db: Session) -> str:
         )
 
 
-def revoke_refresh_token(db: Session, user_id: int) -> None:
-    user_refresh_tokens = (
-        db.query(RefreshToken)
-        .filter(RefreshToken.user_id == user_id & RefreshToken.is_revoked)
-        .all()
-    )
-    for token in user_refresh_tokens:
-        token.is_revoked = True
+def revoke_refresh_token(db: Session, refresh_token: str) -> dict:
+    refresh_token_exists = db.query(RefreshToken).filter((RefreshToken.refresh_token == refresh_token) & (RefreshToken.is_revoked == False)).first()
+    
+    if not refresh_token_exists:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token.",
+        )
+        
+    refresh_token_exists.is_revoked = True
     try:
         db.commit()
+        return {"message": "Logged out successfully."}
     except Exception as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to revoke refresh tokens.",
         )
-
+        
 
 def refresh_access_token(refresh_token: str, db: Session) -> dict:
     token_record = (
         db.query(RefreshToken)
         .filter(
-            RefreshToken.refresh_token
-            == refresh_token & RefreshToken.is_revoked
-            == False & RefreshToken.expires_at
-            > datetime.now(timezone.utc),
+            (RefreshToken.refresh_token
+            == refresh_token) & (RefreshToken.is_revoked
+            == False) & (RefreshToken.expires_at
+            > datetime.now(timezone.utc)),
         )
         .first()
     )
@@ -515,5 +481,17 @@ def refresh_access_token(refresh_token: str, db: Session) -> dict:
             detail="Invalid or expired refresh token.",
         )
     user = db.query(User).filter(User.id == token_record.user_id).first()
-    token = create_token(user.id, user.username)
+    token = generate_token(user.id, user.username)
     return {"token": token}
+
+def delete_expired_refresh_tokens(db:Session):
+    db.query(RefreshToken).filter(RefreshToken.expires_at
+            <= datetime.now(timezone.utc)).delete()
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise  HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete expired token, please try again."
+        )   

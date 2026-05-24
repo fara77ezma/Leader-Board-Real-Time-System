@@ -61,3 +61,6 @@ class CreateGameRequest(BaseModel):
     name: str
     description: str | None = None
     is_active: bool = True
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str

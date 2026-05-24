@@ -1,3 +1,4 @@
+from fastapi import HTTPException,status
 from sqlalchemy import func
 
 from models.request import SubmitScoreRequest
@@ -17,9 +18,13 @@ def submit_score(
     existing_user = db.query(User).filter(User.id == user_id).first()
     exsting_game = db.query(Game).filter(Game.name == game_name).first()
     if not existing_user or not existing_user.is_active:
-        return {"error": "User not found."}
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found."
+        )
     if not exsting_game or not exsting_game.is_active:
-        return {"error": "Game not found."}
+       raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Game not found."
+        )
 
     user_code = existing_user.user_code
 
@@ -31,16 +36,16 @@ def submit_score(
     try:
         db.commit()
     except Exception as e:
-        print("Error during score submission:", e)
         db.rollback()
-        return {"error": "Score submission failed."}
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to submit score.",
+        )
 
     # Insert in Redis sorted set for quick leaderboard retrieval
     redis_key = f"leaderboard:{game_name}"
     try:
         current_best = redis_client.zscore(redis_key, user_id) or 0
-        print("Current best score in Redis:", current_best)
-
         if score <= current_best:
             rank = redis_client.zrevrank(redis_key, user_id)
             return {
@@ -60,9 +65,11 @@ def submit_score(
                 "rank": rank + 1,
             }  # rank is 0-based
     except Exception as e:
-        print("Error updating Redis leaderboard:", e)
         refresh_redis_leaderboard(game_name, db)
-        return {"error": "Score submission failed at leaderboard update."}
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to submit score to Redis. Leaderboard refreshed.",
+        )
 
 
 def fetch_leaderboard(game_name: str, limit: int, db: Session):
@@ -81,7 +88,6 @@ def fetch_leaderboard(game_name: str, limit: int, db: Session):
         top_entries = redis_client.zrevrange(
             redis_key, 0, limit - 1, withscores=True
         )  # Get top 'limit' entries in descending order with scores
-        print("Top entries from Redis:", top_entries)
         leaderboard = []
         for rank, (user_id, score) in enumerate(top_entries, start=1):
             if user_id_username_map.get(int(user_id)):
@@ -94,8 +100,10 @@ def fetch_leaderboard(game_name: str, limit: int, db: Session):
                 )
         return {"game_name": game_name, "leaderboard": leaderboard}
     except Exception as e:
-        print("Error fetching leaderboard from Redis:", e)
-        return {"error": "Failed to fetch leaderboard."}
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch leaderboard from Redis.",
+        )
 
 
 def fetch_user_rank(game_name: str, current_user: UserProfileResponse) -> dict:
@@ -113,8 +121,10 @@ def fetch_user_rank(game_name: str, current_user: UserProfileResponse) -> dict:
                 "score": score,
             }  # rank is 0-based
     except Exception as e:
-        print("Error fetching user rank from Redis:", e)
-        return {"error": "Failed to fetch user rank."}
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch user rank from Redis.",
+        )
 
 
 async def get_player_ranks_from_redis(
@@ -148,7 +158,6 @@ async def get_player_ranks_from_redis(
                     "score": None,
                 }  # Not ranked yet
         except Exception as e:
-            print(f"Error fetching rank for game {game_name} from Redis:", e)
             result[game_name] = None  # Indicate error or not ranked
 
     return result
@@ -191,7 +200,9 @@ def refresh_user_scores_in_leaderboards(
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        return {"error": "User not found."}
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found."
+        )
 
     user_code = user.user_code
     filter_condition = LeaderboardEntry.user_code == user_code
@@ -212,3 +223,47 @@ def refresh_user_scores_in_leaderboards(
         redis_client.zadd(redis_key, {user_id: entry.best_score})
 
     return {"message": "User scores refreshed in leaderboards successfully."}
+
+def fetch_around_me(game_name: str, current_user: UserProfileResponse, db: Session):
+    redis_key = f"leaderboard:{game_name}"
+    my_rank = redis_client.zrevrank(redis_key, current_user.id)
+    last_rank = redis_client.zcard(redis_key) - 1 
+    
+    if my_rank is None:
+        return {"message": "User not ranked yet."}
+    
+    start = max(0, my_rank - 2)  
+    shortage = 2 - (my_rank - start)
+    end = my_rank + 2 + shortage
+    
+    if end > last_rank:
+        end = last_rank
+        start = max(0, end - 4)
+    
+    try: 
+        entries = redis_client.zrevrange(redis_key,start,end,withscores=True)
+        
+        users = (
+            db.query(User)
+            .filter(User.id.in_([int(user_id) for user_id, _ in entries]))
+            .all()
+        )
+        user_name_id_map = {user.id: user.username for user in users}
+        return {
+            "game_name": game_name,
+            "leaderboard": [
+                {
+                    "rank": start + rank + 1,
+                    "username": user_name_id_map.get(int(user_id), "Unknown"),
+                    "score": score,
+                    "is_me": int(user_id) == current_user.id,
+                }
+                for rank, (user_id, score) in enumerate(entries)
+            ],
+        }
+    except Exception as e:
+        raise HTTPException(  
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to fetch around me leaderboard.",
+                )
+ 

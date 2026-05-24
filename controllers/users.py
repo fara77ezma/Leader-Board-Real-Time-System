@@ -3,8 +3,9 @@ from fastapi.security import HTTPAuthorizationCredentials
 from config.cloudinary import upload_avatar
 from config.db import get_db
 from fastapi import Depends, HTTPException, UploadFile, status
+from controllers import auth
 from models.response import DifferentUserProfileResponse, UserProfileResponse
-from models.tables import User
+from models.tables import RefreshToken, User
 from sqlalchemy.orm import Session
 from urllib.parse import quote
 from controllers.leaderboard import get_player_ranks_from_redis
@@ -78,7 +79,6 @@ async def update_user_avatar(
     try:
         db.commit()
     except Exception as e:
-        print("Error updating user profile:", e)
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -118,6 +118,7 @@ async def deactivate_user_account(
     user = db.query(User).filter(User.id == current_user.id).first()
     user.is_active = False
     try:
+        db.query(RefreshToken).filter((RefreshToken.user_id == current_user.id) & (RefreshToken.is_revoked == False)).update({"is_revoked": True})
         db.commit()
     except Exception:
         db.rollback()
@@ -125,11 +126,47 @@ async def deactivate_user_account(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to deactivate user account.",
         )
+    
     keys = redis_client.keys("leaderboard:*")
     for key in keys:
         redis_client.zrem(key, str(current_user.id))
+  
     return {"message": "account deactivated successfully."}
 
+
+def reactivate_account(email: str, password: str, db: Session) -> dict:
+    user = db.query(User).filter(User.email == email.lower().strip()).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email.",
+        )
+    if user.is_active:
+        return {"message": "Account is already active."}
+    if not auth.verify_password(password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid password.",
+        )
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email not verified. Please verify your email before reactivating your account.",
+        )
+    user.is_active = True
+    try:
+        db.commit()
+        db.refresh(user)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to reactivate account.",
+        )
+
+    token = auth.generate_token(user.id, user.username)
+    refresh_token = auth.generate_refresh_token(user.id)
+    return {"message": "Account reactivated successfully.", "token": token,"refresh_token": refresh_token}
 
 async def delete_user_account(db: Session, current_user: UserProfileResponse) -> dict:
     user = db.query(User).filter(User.id == current_user.id).first()
