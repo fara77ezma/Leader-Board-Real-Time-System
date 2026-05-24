@@ -53,5 +53,14 @@ class LoginRequest(BaseModel):
 
 
 class SubmitScoreRequest(BaseModel):
-    game_id: str
+    game_name: str
     score: int
+
+
+class CreateGameRequest(BaseModel):
+    name: str
+    description: str | None = None
+    is_active: bool = True
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str

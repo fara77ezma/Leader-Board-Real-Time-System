@@ -188,8 +188,8 @@ def register_verified_user(client, get_user):
 
 @pytest.fixture
 def make_submit_request():
-    def _make_submit_request(game_id="game_001", score=100):
-        return SubmitScoreRequest(game_id=game_id, score=score)
+    def _make_submit_request(game_name="game_001", score=100):
+        return SubmitScoreRequest(game_name=game_name, score=score)
 
     return _make_submit_request
 
