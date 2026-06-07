@@ -26,9 +26,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 
 
-async def register_user(
-    request: RegisterRequest, db: Session
-) -> RegisterResponse:
+async def register_user(request: RegisterRequest, db: Session) -> RegisterResponse:
     # Normalize input data
     # emails are case-insensitive
     email = request.email.lower().strip()
@@ -88,7 +86,7 @@ async def register_user(
 
         # reload the instance from the database to get any defaults set by the DB
         db.refresh(new_user)
-        
+
     except IntegrityError as e:
         db.rollback()
         # This catches database constraint violations
@@ -146,7 +144,11 @@ def login_user(request: LoginRequest, db: Session) -> dict:
     token = generate_token(existing_user.id, existing_user.username)
     refresh_token = generate_refresh_token(existing_user.id, db=db)
 
-    return {"message": "Login successful.", "token": token, "refresh_token": refresh_token}
+    return {
+        "message": "Login successful.",
+        "token": token,
+        "refresh_token": refresh_token,
+    }
 
 
 def hash_password(password: str) -> str:
@@ -400,9 +402,11 @@ def reset_password(code: str, new_password: str, db: Session) -> dict:
     user.password_hash = hash_password(new_password)
     user.password_reset_code = None
     user.password_reset_expiry = None
-    
+
     try:
-        db.query(RefreshToken).filter((RefreshToken.user_id == user.id) & (RefreshToken.is_revoked == False)).update({"is_revoked": True})
+        db.query(RefreshToken).filter(
+            (RefreshToken.user_id == user.id) & (RefreshToken.is_revoked == False)
+        ).update({"is_revoked": True})
         db.commit()
         db.refresh(user)
         return {"message": "Password reset successfully."}
@@ -412,7 +416,7 @@ def reset_password(code: str, new_password: str, db: Session) -> dict:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to reset password.",
         )
-    
+
 
 async def require_admin(credentials, db):
     current_user = await users.get_current_user(credentials=credentials, db=db)
@@ -430,6 +434,7 @@ def generate_refresh_token(user_id: int, db: Session) -> str:
     new_token = RefreshToken(
         user_id=user_id, refresh_token=refresh_token, expires_at=expires_at
     )
+    print(new_token)
     try:
         db.add(new_token)
         db.commit()
@@ -437,6 +442,7 @@ def generate_refresh_token(user_id: int, db: Session) -> str:
         return refresh_token
     except Exception as e:
         db.rollback()
+        print(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate refresh token.",
@@ -444,14 +450,21 @@ def generate_refresh_token(user_id: int, db: Session) -> str:
 
 
 def revoke_refresh_token(db: Session, refresh_token: str) -> dict:
-    refresh_token_exists = db.query(RefreshToken).filter((RefreshToken.refresh_token == refresh_token) & (RefreshToken.is_revoked == False)).first()
-    
+    refresh_token_exists = (
+        db.query(RefreshToken)
+        .filter(
+            (RefreshToken.refresh_token == refresh_token)
+            & (RefreshToken.is_revoked == False)
+        )
+        .first()
+    )
+
     if not refresh_token_exists:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token.",
         )
-        
+
     refresh_token_exists.is_revoked = True
     try:
         db.commit()
@@ -462,16 +475,15 @@ def revoke_refresh_token(db: Session, refresh_token: str) -> dict:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to revoke refresh tokens.",
         )
-        
+
 
 def refresh_access_token(refresh_token: str, db: Session) -> dict:
     token_record = (
         db.query(RefreshToken)
         .filter(
-            (RefreshToken.refresh_token
-            == refresh_token) & (RefreshToken.is_revoked
-            == False) & (RefreshToken.expires_at
-            > datetime.now(timezone.utc)),
+            (RefreshToken.refresh_token == refresh_token)
+            & (RefreshToken.is_revoked == False)
+            & (RefreshToken.expires_at > datetime.now(timezone.utc)),
         )
         .first()
     )
@@ -484,14 +496,16 @@ def refresh_access_token(refresh_token: str, db: Session) -> dict:
     token = generate_token(user.id, user.username)
     return {"token": token}
 
-def delete_expired_refresh_tokens(db:Session):
-    db.query(RefreshToken).filter(RefreshToken.expires_at
-            <= datetime.now(timezone.utc)).delete()
+
+def delete_expired_refresh_tokens(db: Session):
+    db.query(RefreshToken).filter(
+        RefreshToken.expires_at <= datetime.now(timezone.utc)
+    ).delete()
     try:
         db.commit()
     except Exception as e:
         db.rollback()
-        raise  HTTPException(
+        raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete expired token, please try again."
-        )   
+            detail="Failed to delete expired token, please try again.",
+        )

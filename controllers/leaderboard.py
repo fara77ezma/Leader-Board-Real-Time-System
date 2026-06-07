@@ -1,6 +1,7 @@
-from fastapi import HTTPException,status
+from fastapi import HTTPException, status
 from sqlalchemy import func
 
+from config.websocket import manager
 from models.request import SubmitScoreRequest
 from models.response import UserProfileResponse
 from models.tables import LeaderboardEntry, User, Game
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 from config.redis import redis_client, get_async_redis
 
 
-def submit_score(
+async def submit_score(
     request: SubmitScoreRequest, current_user: UserProfileResponse, db: Session
 ):
     # Logic to submit the score to the leaderboard
@@ -22,7 +23,7 @@ def submit_score(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found."
         )
     if not exsting_game or not exsting_game.is_active:
-       raise HTTPException(
+        raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Game not found."
         )
 
@@ -57,6 +58,10 @@ def submit_score(
         else:
 
             redis_client.zadd(redis_key, {user_id: score})
+            updated_leaderboard = fetch_leaderboard(
+                game_name=game_name, limit=10, db=db
+            )
+            await manager.broadcast(game_name=game_name, data=updated_leaderboard)
             rank = redis_client.zrevrank(redis_key, user_id)
             return {
                 "message": "Score submitted successfully.",
@@ -224,25 +229,26 @@ def refresh_user_scores_in_leaderboards(
 
     return {"message": "User scores refreshed in leaderboards successfully."}
 
+
 def fetch_around_me(game_name: str, current_user: UserProfileResponse, db: Session):
     redis_key = f"leaderboard:{game_name}"
     my_rank = redis_client.zrevrank(redis_key, current_user.id)
-    last_rank = redis_client.zcard(redis_key) - 1 
-    
+    last_rank = redis_client.zcard(redis_key) - 1
+
     if my_rank is None:
         return {"message": "User not ranked yet."}
-    
-    start = max(0, my_rank - 2)  
+
+    start = max(0, my_rank - 2)
     shortage = 2 - (my_rank - start)
     end = my_rank + 2 + shortage
-    
+
     if end > last_rank:
         end = last_rank
         start = max(0, end - 4)
-    
-    try: 
-        entries = redis_client.zrevrange(redis_key,start,end,withscores=True)
-        
+
+    try:
+        entries = redis_client.zrevrange(redis_key, start, end, withscores=True)
+
         users = (
             db.query(User)
             .filter(User.id.in_([int(user_id) for user_id, _ in entries]))
@@ -262,8 +268,7 @@ def fetch_around_me(game_name: str, current_user: UserProfileResponse, db: Sessi
             ],
         }
     except Exception as e:
-        raise HTTPException(  
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to fetch around me leaderboard.",
-                )
- 
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch around me leaderboard.",
+        )

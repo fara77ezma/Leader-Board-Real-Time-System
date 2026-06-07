@@ -20,7 +20,9 @@ async def submit_new_score(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     current_user = await users.get_current_user(credentials=credentials, db=db)
-    return leaderboard.submit_score(request=request, current_user=current_user, db=db)
+    return await leaderboard.submit_score(
+        request=request, current_user=current_user, db=db
+    )
 
 
 @router.get("/api/get-leaderboard/{game_name}")
@@ -71,6 +73,7 @@ async def refresh_user_scores(
         user_id=user_id, game_name=game_name, db=db
     )
 
+
 @router.get("/api/get-leaderboard/{game_name}/around-me")
 async def get_around_me(
     game_name: str,
@@ -78,4 +81,6 @@ async def get_around_me(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     current_user = await users.get_current_user(credentials=credentials, db=db)
-    return leaderboard.fetch_around_me(game_name=game_name, current_user=current_user, db=db)
+    return leaderboard.fetch_around_me(
+        game_name=game_name, current_user=current_user, db=db
+    )
