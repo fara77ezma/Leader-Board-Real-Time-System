@@ -168,7 +168,7 @@ def reactivate_account(email: str, password: str, db: Session) -> dict:
         )
 
     token = auth.generate_token(user.id, user.username)
-    refresh_token = auth.generate_refresh_token(user.id)
+    refresh_token = auth.generate_refresh_token(user.id, db=db)
     return {
         "message": "Account reactivated successfully.",
         "token": token,
