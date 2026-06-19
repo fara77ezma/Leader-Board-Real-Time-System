@@ -17,12 +17,12 @@ async def submit_score(
     game_name = request.game_name
     user_id = current_user.id
     existing_user = db.query(User).filter(User.id == user_id).first()
-    exsting_game = db.query(Game).filter(Game.name == game_name).first()
+    existing_game = db.query(Game).filter(Game.name == game_name).first()
     if not existing_user or not existing_user.is_active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found."
         )
-    if not exsting_game or not exsting_game.is_active:
+    if not existing_game or not existing_game.is_active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Game not found."
         )
@@ -30,10 +30,10 @@ async def submit_score(
     user_code = existing_user.user_code
 
     # Insert in the LeaderboardEntry table (SQL)
-    new_sumbission = LeaderboardEntry(
+    new_submission = LeaderboardEntry(
         user_code=user_code, game_name=game_name, score=score
     )
-    db.add(new_sumbission)
+    db.add(new_submission)
     try:
         db.commit()
     except Exception as e:

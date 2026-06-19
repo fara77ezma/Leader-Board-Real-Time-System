@@ -1,6 +1,5 @@
 def test_leaderboard_submit_rank_and_profile_games_flow(
-    client,
-    register_verified_user,
+    client, register_verified_user, mock_existing_game
 ):
     alice = register_verified_user(
         username="alice",
@@ -12,15 +11,15 @@ def test_leaderboard_submit_rank_and_profile_games_flow(
         email="bob@example.com",
         phone_number="01012345671",
     )
-
+    mock_existing_game(name="space_race")
     alice_first_score = client.post(
         "/leaderboard/api/submit-score",
         headers=alice["headers"],
         json={"game_name": "space_race", "score": 100},
     )
+
     assert alice_first_score.status_code == 200
     assert alice_first_score.json()["rank"] == 1
-
     bob_high_score = client.post(
         "/leaderboard/api/submit-score",
         headers=bob["headers"],

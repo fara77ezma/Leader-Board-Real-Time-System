@@ -53,9 +53,7 @@ class TestRegisterUser:
 
         from controllers.auth import register_user
 
-        result = await register_user(
-            sample_register_request, db_session, client_ip="127.0.0.1"
-        )
+        result = await register_user(sample_register_request, db_session)
 
         assert result.requires_verification is True
         assert "Registration successful" in result.message
@@ -70,9 +68,7 @@ class TestRegisterUser:
         from controllers.auth import register_user
 
         with pytest.raises(HTTPException) as exc_info:
-            await register_user(
-                sample_register_request, db_session, client_ip="127.0.0.1"
-            )
+            await register_user(sample_register_request, db_session)
 
         assert exc_info.value.status_code == 409
         db_session.add.assert_not_called()
@@ -87,9 +83,7 @@ class TestRegisterUser:
         from controllers.auth import register_user
 
         with pytest.raises(HTTPException) as exc_info:
-            await register_user(
-                sample_register_request, db_session, client_ip="127.0.0.1"
-            )
+            await register_user(sample_register_request, db_session)
 
         assert exc_info.value.status_code == 500
         db_session.rollback.assert_called_once()

@@ -75,7 +75,7 @@ class RefreshToken(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     refresh_token = Column(String(255), unique=True, nullable=False)
     is_revoked = Column(Boolean, nullable=False, server_default=false())

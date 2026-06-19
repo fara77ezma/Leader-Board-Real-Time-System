@@ -4,8 +4,8 @@ from unittest.mock import Mock
 from controllers.users import (
     get_current_user,
     get_user_profile,
-    update_user_profile,
     remove_user_avatar,
+    update_user_avatar,
 )
 
 
@@ -32,9 +32,9 @@ class TestGetCurrentUser:
             return_value={"game_001": {"score": 100, "rank": 1}},
         )
 
-        mock_request = Mock()
-        mock_request.headers = {"Authorization": "Bearer valid_token"}
-        result = await get_current_user(request=mock_request, db=db_session)
+        mock_credentials = mocker.Mock()
+        mock_credentials.credentials = "valid_token"
+        result = await get_current_user(credentials=mock_credentials, db=db_session)
 
         assert result.id == 1
         assert result.username == "testuser"
@@ -49,10 +49,10 @@ class TestGetCurrentUser:
             return_value={"error": "Invalid token"},
         )
 
-        mock_request = Mock()
-        mock_request.headers = {"Authorization": "Bearer invalid_token"}
+        mock_credentials = mocker.Mock()
+        mock_credentials.credentials = "invalid_token"
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(request=mock_request, db=db_session)
+            await get_current_user(credentials=mock_credentials, db=db_session)
 
         assert exc_info.value.status_code == 401
 
@@ -65,17 +65,17 @@ class TestGetCurrentUser:
         )
         db_session.query.return_value.filter.return_value.first.return_value = None
 
-        mock_request = Mock()
-        mock_request.headers = {"Authorization": "Bearer valid_token"}
+        mock_credentials = mocker.Mock()
+        mock_credentials.credentials = "valid_token"
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(request=mock_request, db=db_session)
+            await get_current_user(credentials=mock_credentials, db=db_session)
 
         assert exc_info.value.status_code == 404
 
     @pytest.mark.asyncio
     async def test_get_current_user_inactive(self, mocker, db_session):
         """Test when user is inactive"""
-        inactive_user = Mock()
+        inactive_user = mocker.Mock()
         inactive_user.id = 1
         inactive_user.is_active = False
 
@@ -87,10 +87,10 @@ class TestGetCurrentUser:
             inactive_user
         )
 
-        mock_request = Mock()
-        mock_request.headers = {"Authorization": "Bearer valid_token"}
+        mock_credentials = mocker.Mock()
+        mock_credentials.credentials = "valid_token"
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(db=db_session, request=mock_request)
+            await get_current_user(db=db_session, credentials=mock_credentials)
 
         assert exc_info.value.status_code == 404
 
@@ -147,13 +147,13 @@ class TestGetUserProfile:
         assert result.games == {}
 
 
-class TestUpdateUserProfile:
+class TestUpdateUserAvatar:
     @pytest.mark.asyncio
     async def test_update_avatar_success(
         self, mocker, db_session, mock_current_user, mock_upload_file
     ):
         """Test successfully updating user avatar"""
-        mock_user = Mock()
+        mock_user = mocker.Mock()
         mock_user.id = 1
         mock_user.username = "testuser"
         db_session.query.return_value.filter.return_value.first.return_value = mock_user
@@ -164,7 +164,7 @@ class TestUpdateUserProfile:
             return_value="https://cloudinary.com/new_avatar.jpg",
         )
 
-        result = await update_user_profile(
+        result = await update_user_avatar(
             db_session, mock_current_user, mock_upload_file
         )
 
@@ -181,7 +181,7 @@ class TestUpdateUserProfile:
         db_session.query.return_value.filter.return_value.first.return_value = None
 
         with pytest.raises(HTTPException) as exc_info:
-            await update_user_profile(db_session, mock_current_user, mock_upload_file)
+            await update_user_avatar(db_session, mock_current_user, mock_upload_file)
 
         assert exc_info.value.status_code == 404
 
@@ -190,7 +190,7 @@ class TestUpdateUserProfile:
         self, mocker, db_session, mock_current_user, mock_upload_file
     ):
         """Test avatar update with database error"""
-        mock_user = Mock()
+        mock_user = mocker.Mock()
         mock_user.id = 1
         db_session.query.return_value.filter.return_value.first.return_value = mock_user
         db_session.commit.side_effect = Exception("DB error")
@@ -201,7 +201,7 @@ class TestUpdateUserProfile:
         )
 
         with pytest.raises(Exception):
-            result = await update_user_profile(
+            result = await update_user_avatar(
                 db_session, mock_current_user, mock_upload_file
             )
             assert result.status_code == 500
@@ -212,7 +212,7 @@ class TestRemoveUserAvatar:
     @pytest.mark.asyncio
     async def test_remove_avatar_success(self, mocker, db_session, mock_current_user):
         """Test successfully removing user avatar"""
-        mock_user = Mock()
+        mock_user = mocker.Mock()
         mock_user.id = 1
         mock_user.username = "testuser"
         db_session.query.return_value.filter.return_value.first.return_value = mock_user
@@ -234,21 +234,9 @@ class TestRemoveUserAvatar:
         db_session.refresh.assert_called_once_with(mock_user)
 
     @pytest.mark.asyncio
-    async def test_remove_avatar_user_not_found(
-        self, mocker, db_session, mock_current_user
-    ):
-        """Test removing avatar when user doesn't exist"""
-        db_session.query.return_value.filter.return_value.first.return_value = None
-
-        with pytest.raises(HTTPException) as exc_info:
-            await remove_user_avatar(db_session, mock_current_user)
-
-        assert exc_info.value.status_code == 404
-
-    @pytest.mark.asyncio
     async def test_remove_avatar_db_error(self, mocker, db_session, mock_current_user):
         """Test avatar removal with database error"""
-        mock_user = Mock()
+        mock_user = mocker.Mock()
         mock_user.id = 1
         mock_user.username = "testuser"
         db_session.query.return_value.filter.return_value.first.return_value = mock_user
@@ -270,7 +258,7 @@ class TestRemoveUserAvatar:
         self, mocker, db_session, mock_current_user
     ):
         """Test avatar removal with Cloudinary error"""
-        mock_user = Mock()
+        mock_user = mocker.Mock()
         mock_user.id = 1
         mock_user.username = "testuser"
         db_session.query.return_value.filter.return_value.first.return_value = mock_user

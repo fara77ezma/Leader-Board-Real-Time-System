@@ -118,7 +118,10 @@ async def deactivate_user_account(
     user = db.query(User).filter(User.id == current_user.id).first()
     user.is_active = False
     try:
-        db.query(RefreshToken).filter((RefreshToken.user_id == current_user.id) & (RefreshToken.is_revoked == False)).update({"is_revoked": True})
+        db.query(RefreshToken).filter(
+            (RefreshToken.user_id == current_user.id)
+            & (RefreshToken.is_revoked == False)
+        ).update({"is_revoked": True})
         db.commit()
     except Exception:
         db.rollback()
@@ -126,11 +129,11 @@ async def deactivate_user_account(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to deactivate user account.",
         )
-    
+
     keys = redis_client.keys("leaderboard:*")
     for key in keys:
         redis_client.zrem(key, str(current_user.id))
-  
+
     return {"message": "account deactivated successfully."}
 
 
@@ -166,7 +169,12 @@ def reactivate_account(email: str, password: str, db: Session) -> dict:
 
     token = auth.generate_token(user.id, user.username)
     refresh_token = auth.generate_refresh_token(user.id)
-    return {"message": "Account reactivated successfully.", "token": token,"refresh_token": refresh_token}
+    return {
+        "message": "Account reactivated successfully.",
+        "token": token,
+        "refresh_token": refresh_token,
+    }
+
 
 async def delete_user_account(db: Session, current_user: UserProfileResponse) -> dict:
     user = db.query(User).filter(User.id == current_user.id).first()
