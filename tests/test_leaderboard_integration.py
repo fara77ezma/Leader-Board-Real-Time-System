@@ -1,6 +1,5 @@
 def test_leaderboard_submit_rank_and_profile_games_flow(
-    client,
-    register_verified_user,
+    client, register_verified_user, mock_existing_game
 ):
     alice = register_verified_user(
         username="alice",
@@ -12,19 +11,19 @@ def test_leaderboard_submit_rank_and_profile_games_flow(
         email="bob@example.com",
         phone_number="01012345671",
     )
-
+    mock_existing_game(name="space_race")
     alice_first_score = client.post(
         "/leaderboard/api/submit-score",
         headers=alice["headers"],
-        json={"game_id": "space_race", "score": 100},
+        json={"game_name": "space_race", "score": 100},
     )
+
     assert alice_first_score.status_code == 200
     assert alice_first_score.json()["rank"] == 1
-
     bob_high_score = client.post(
         "/leaderboard/api/submit-score",
         headers=bob["headers"],
-        json={"game_id": "space_race", "score": 250},
+        json={"game_name": "space_race", "score": 250},
     )
     assert bob_high_score.status_code == 200
     assert bob_high_score.json()["rank"] == 1
@@ -32,7 +31,7 @@ def test_leaderboard_submit_rank_and_profile_games_flow(
     alice_new_best = client.post(
         "/leaderboard/api/submit-score",
         headers=alice["headers"],
-        json={"game_id": "space_race", "score": 300},
+        json={"game_name": "space_race", "score": 300},
     )
     assert alice_new_best.status_code == 200
     assert alice_new_best.json()["previous_best"] == 100.0
@@ -41,7 +40,7 @@ def test_leaderboard_submit_rank_and_profile_games_flow(
     bob_lower_score = client.post(
         "/leaderboard/api/submit-score",
         headers=bob["headers"],
-        json={"game_id": "space_race", "score": 200},
+        json={"game_name": "space_race", "score": 200},
     )
     assert bob_lower_score.status_code == 200
     assert bob_lower_score.json()["best_score"] == 250.0
@@ -53,7 +52,7 @@ def test_leaderboard_submit_rank_and_profile_games_flow(
     )
     assert leaderboard_response.status_code == 200
     assert leaderboard_response.json() == {
-        "game_id": "space_race",
+        "game_name": "space_race",
         "leaderboard": [
             {"rank": 1, "username": "alice", "score": 300.0},
             {"rank": 2, "username": "bob", "score": 250.0},

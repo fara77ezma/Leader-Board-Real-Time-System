@@ -6,8 +6,10 @@ from unittest.mock import AsyncMock
 from unittest.mock import Mock
 import pytest
 from sqlalchemy import text
+from config.db import SessionLocal
 from models.request import LoginRequest, RegisterRequest, SubmitScoreRequest
 from models.response import UserProfileResponse
+from models.tables import User
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
@@ -58,6 +60,7 @@ def mock_user_from_db():
     user.is_verified = True
     user.created_at = "2024-01-01"
     user.is_active = True
+    user.is_admin = False
     return user
 
 
@@ -134,6 +137,24 @@ def client(mocker):
 
 
 @pytest.fixture
+def mock_existing_game(client, register_admin_user):
+    def _create(name: str = "space_race", is_active: bool = True):
+        admin = register_admin_user(
+            username="gameadmin",
+            email="admin1@example.com",
+            phone_number="01000000000",
+        )
+        response = client.post(
+            "/game/",
+            headers=admin["headers"],
+            json={"name": name, "is_active": is_active},
+        )
+        assert response.status_code == 200, response.json()
+
+    return _create
+
+
+@pytest.fixture
 def get_user():
     from config.db import SessionLocal
     from models.tables import User
@@ -187,9 +208,28 @@ def register_verified_user(client, get_user):
 
 
 @pytest.fixture
+def register_admin_user(register_verified_user):
+    def _register_admin_user(username: str, email: str, phone_number: str):
+        user_data = register_verified_user(
+            username=username, email=email, phone_number=phone_number
+        )
+        db = SessionLocal()
+        try:
+            db_user = db.query(User).filter(User.username == username).first()
+            db_user.is_admin = True
+            db.commit()
+            db.refresh()
+        except:
+            db.close()
+        return user_data
+
+    return _register_admin_user
+
+
+@pytest.fixture
 def make_submit_request():
-    def _make_submit_request(game_id="game_001", score=100):
-        return SubmitScoreRequest(game_id=game_id, score=score)
+    def _make_submit_request(game_name="game_001", score=100):
+        return SubmitScoreRequest(game_name=game_name, score=score)
 
     return _make_submit_request
 

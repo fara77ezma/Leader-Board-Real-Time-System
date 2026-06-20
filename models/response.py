@@ -17,6 +17,7 @@ class UserProfileResponse(BaseModel):
     # Metadata
     is_verified: bool = False
     created_at: datetime
+    is_admin: bool = False
 
 
 class DifferentUserProfileResponse(BaseModel):

@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+    const ws = new WebSocket("ws://localhost:5000/ws/chess")
+    ws.onmessage = (event) => console.log(JSON.parse(event.data))
+    ws.onopen = () => console.log("Connected!")
+    ws.onclose = () => console.log("Disconnected!")
+    ws.onerror = (error) => console.log("Error:", error)
+</script>
+</body>
+</html>

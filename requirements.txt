@@ -18,3 +18,5 @@ cloudinary
 python-multipart
 pyrate-limiter==2.10.0
 pytest
+pytest-asyncio
+apscheduler
