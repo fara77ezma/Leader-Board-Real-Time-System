@@ -90,8 +90,7 @@ class TestGameEndpointAuth:
             "/game/",
             json={"name": "test_game", "description": "Test game"},
         )
-
-        assert response.status_code == 401
+        assert response.status_code == 403
 
 
 class TestGameCRUDFlow:
