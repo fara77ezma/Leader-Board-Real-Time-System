@@ -18,7 +18,7 @@ jobs:
       
       # 3. Run tests
       - name: Run tests
-        run: docker-compose -f docker-compose.test.yml run --rm -it test-runner
+        run: docker compose -f docker-compose.test.yml run --rm -it test-runner
       
       # 4. Clean up
       - name: Clean up
