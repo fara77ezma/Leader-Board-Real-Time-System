@@ -129,10 +129,15 @@ async def deactivate_user_account(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to deactivate user account.",
         )
-
-    keys = redis_client.keys("leaderboard:*")
-    for key in keys:
-        redis_client.zrem(key, str(current_user.id))
+    try:
+        keys = redis_client.keys("leaderboard:*")
+        for key in keys:
+            redis_client.zrem(key, str(current_user.id))
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to remove redis data.",
+        )
 
     return {"message": "account deactivated successfully."}
 
