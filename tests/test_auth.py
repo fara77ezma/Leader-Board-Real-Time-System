@@ -306,5 +306,5 @@ class TestDeleteExpiredRefreshTokens:
 
         with pytest.raises(HTTPException) as exc_info:
             delete_expired_refresh_tokens(db_session)
-
+        #
         assert exc_info.value.status_code == 500
