@@ -1,4 +1,4 @@
-from fastapi.security import HTTPAuthorizationCredentials,HTTPBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from controllers import auth
 from fastapi import APIRouter, Depends, status, Request
 from config.db import get_db
@@ -13,6 +13,7 @@ router = APIRouter(
 )
 
 security = HTTPBearer()
+
 
 @router.post(
     "/register",
@@ -79,15 +80,21 @@ def reset_password(
 ):
     return auth.reset_password(code, new_password, db)
 
+
 @router.post("/logout")
 def logout(request: RefreshTokenRequest, db: Session = Depends(get_db)):
-    return auth.revoke_refresh_token(db = db , refresh_token= request.refresh_token)
+    return auth.revoke_refresh_token(db=db, refresh_token=request.refresh_token)
+
 
 @router.post("/refresh-token")
 def refresh_access_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
-    return auth.refresh_access_token(refresh_token = request.refresh_token, db =db )
+    return auth.refresh_access_token(refresh_token=request.refresh_token, db=db)
+
 
 @router.get("/delete-expired-tokens")
-async def delete_expired_tokens(db: Session = Depends(get_db), credentials: HTTPAuthorizationCredentials = Depends(security)):
-    await auth.require_admin(db=db,credentials=credentials)
+async def delete_expired_tokens(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    await auth.require_admin(db=db, credentials=credentials)
     return auth.delete_expired_refresh_tokens(db)

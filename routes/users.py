@@ -51,6 +51,7 @@ async def deactivate_account(
     current_user = await users.get_current_user(credentials=credentials, db=db)
     return await users.deactivate_user_account(db, current_user)
 
+
 @router.post(
     "/reactivate-account",
     dependencies=[Depends(RateLimiter(times=5, seconds=60))],
@@ -61,6 +62,7 @@ def reactivate_account(
     db: Session = Depends(get_db),
 ):
     return users.reactivate_account(email, password, db)
+
 
 @router.delete("/api/profile/avatar")
 async def delete_avatar(
