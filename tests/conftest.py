@@ -99,6 +99,9 @@ def client(mocker):
     from config.db import engine
     from config.redis import redis_client
     from models.tables import Base
+    from redis import asyncio as aioredis
+
+    async_redis_client = aioredis.Redis(host="localhost", port=6379)
 
     for attempt in range(10):
         try:
@@ -113,6 +116,7 @@ def client(mocker):
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     redis_client.flushdb()
+    async_redis_client.flushdb()
 
     async def fake_send_auth_email(*args, **kwargs):
         return True
@@ -131,6 +135,7 @@ def client(mocker):
     with TestClient(app) as test_client:
         yield test_client
 
+    async_redis_client.flushdb()
     redis_client.flushdb()
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
@@ -138,12 +143,18 @@ def client(mocker):
 
 @pytest.fixture
 def mock_existing_game(client, register_admin_user):
+    created_admins = {}
+
     def _create(name: str = "space_race", is_active: bool = True):
-        admin = register_admin_user(
-            username="gameadmin",
-            email="admin1@example.com",
-            phone_number="01000000000",
-        )
+        if "gameadmin" not in created_admins:
+            admin = register_admin_user(
+                username="gameadmin",
+                email="admin1@example.com",
+                phone_number="01000000000",
+            )
+            created_admins["gameadmin"] = admin
+        else:
+            admin = created_admins["gameadmin"]
         response = client.post(
             "/game/",
             headers=admin["headers"],
@@ -219,7 +230,7 @@ def register_admin_user(register_verified_user):
             db_user.is_admin = True
             db.commit()
             db.refresh(db_user)
-        except:
+        finally:
             db.close()
         return user_data
 

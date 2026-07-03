@@ -133,8 +133,8 @@ async def get_player_ranks_from_redis(
     """
     Discover games from Redis and return player's rank in each one.
     """
-    async_redis_client = await get_async_redis()
 
+    async_redis_client = await get_async_redis()
     result: dict[str, dict] = {}
     player_games = db.scalars(
         db.query(LeaderboardEntry.game_name)

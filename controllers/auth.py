@@ -413,7 +413,7 @@ def reset_password(code: str, new_password: str, db: Session) -> dict:
 
 async def require_admin(credentials, db):
     current_user = await users.get_current_user(credentials=credentials, db=db)
-    if not current_user.is_admin:
+    if not current_user or not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin privileges required.",

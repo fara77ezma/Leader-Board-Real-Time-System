@@ -199,7 +199,7 @@ class TestUpdateUserAvatar:
             return_value="https://cloudinary.com/new_avatar.jpg",
         )
 
-        with pytest.raises():
+        with pytest.raises(HTTPException):
             result = await update_user_avatar(
                 db_session, mock_current_user, mock_upload_file
             )
@@ -247,7 +247,7 @@ class TestRemoveUserAvatar:
             return_value="https://ui-avatars.com/api/?name=testuser",
         )
 
-        with pytest.raises():
+        with pytest.raises(HTTPException):
             result = await remove_user_avatar(db_session, mock_current_user)
             assert result.status_code == 500
             assert "Failed to delete user avatar" in str(result.detail)
@@ -268,7 +268,7 @@ class TestRemoveUserAvatar:
             side_effect=Exception("Cloudinary error"),
         )
 
-        with pytest.raises():
+        with pytest.raises(HTTPException):
             result = await remove_user_avatar(db_session, mock_current_user)
             assert result.status_code == 500
             assert "Failed to delete avatar. Please try again." in str(result.detail)
