@@ -10,7 +10,6 @@ from controllers.game import (
     delete_game,
 )
 from models.request import CreateGameRequest
-from models.tables import Game
 
 
 class TestCreateNewGame:

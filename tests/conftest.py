@@ -218,7 +218,7 @@ def register_admin_user(register_verified_user):
             db_user = db.query(User).filter(User.username == username).first()
             db_user.is_admin = True
             db.commit()
-            db.refresh()
+            db.refresh(db_user)
         except:
             db.close()
         return user_data

@@ -5,7 +5,7 @@ from config.db import get_db
 from fastapi import Depends, HTTPException, UploadFile, status
 from controllers import auth
 from models.response import DifferentUserProfileResponse, UserProfileResponse
-from models.tables import RefreshToken, User
+from models.tables import Game, RefreshToken, User
 from sqlalchemy.orm import Session
 from urllib.parse import quote
 from controllers.leaderboard import get_player_ranks_from_redis
@@ -116,6 +116,7 @@ async def deactivate_user_account(
     db: Session, current_user: UserProfileResponse
 ) -> dict:
     user = db.query(User).filter(User.id == current_user.id).first()
+    games = db.query(Game).all()
     user.is_active = False
     try:
         db.query(RefreshToken).filter(
@@ -130,14 +131,11 @@ async def deactivate_user_account(
             detail="Failed to deactivate user account.",
         )
     try:
-        keys = redis_client.keys("leaderboard:*")
-        for key in keys:
+        for game in games:
+            key = f"leaderboard:{game.name}"
             redis_client.zrem(key, str(current_user.id))
     except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to remove redis data.",
-        )
+        print("Failed to remove redis data.")
 
     return {"message": "account deactivated successfully."}
 
@@ -193,8 +191,12 @@ async def delete_user_account(db: Session, current_user: UserProfileResponse) ->
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete user account.",
         )
-    keys = redis_client.keys("leaderboard:*")
-    for key in keys:
-        redis_client.zrem(key, str(current_user.id))
+    games = db.query(Game).all()
+    try:
+        for game in games:
+            key = f"leaderboard:{game.name}"
+            redis_client.zrem(key, str(current_user.id))
+    except Exception:
+        print("Failed to remove redis data.")
 
     return {"message": "account deleted successfully."}

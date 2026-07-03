@@ -11,7 +11,7 @@ class TestSubmitScore:
         self, db_session, make_submit_request, make_current_user
     ):
         db_session.query.return_value.filter.return_value.first.return_value = None
-        with pytest.raises(Exception):
+        with pytest.raises():
             result = await submit_score(
                 make_submit_request(), make_current_user(), db_session
             )
@@ -105,7 +105,7 @@ class TestSubmitScore:
             mock_leaderboard_user
         )
         db_session.commit.side_effect = Exception("DB error")
-        with pytest.raises(Exception):
+        with pytest.raises():
             result = await submit_score(
                 make_submit_request(), make_current_user(), db_session
             )
@@ -127,7 +127,7 @@ class TestSubmitScore:
         )
         mock_redis = mocker.patch("controllers.leaderboard.redis_client")
         mock_redis.zscore.side_effect = Exception("Redis down")
-        with pytest.raises(Exception):
+        with pytest.raises():
             result = await submit_score(
                 make_submit_request(), make_current_user(), db_session
             )

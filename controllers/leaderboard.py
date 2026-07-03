@@ -79,20 +79,15 @@ async def submit_score(
 
 def fetch_leaderboard(game_name: str, limit: int, db: Session):
     # Logic to fetch the leaderboard for a specific game
-    entries = (
-        db.query(LeaderboardEntry).filter(LeaderboardEntry.game_name == game_name).all()
-    )
-    users = (
-        db.query(User)
-        .filter(User.user_code.in_([entry.user_code for entry in entries]))
-        .all()
-    )
-    user_id_username_map = {user.id: user.username for user in users}
     redis_key = f"leaderboard:{game_name}"
     try:
         top_entries = redis_client.zrevrange(
             redis_key, 0, limit - 1, withscores=True
         )  # Get top 'limit' entries in descending order with scores
+        user_ids = [user_id for user_id, _ in top_entries]
+        users = db.query(User).filter(User.id.in_(user_ids)).all()
+
+        user_id_username_map = {user.id: user.username for user in users}
         leaderboard = []
         for rank, (user_id, score) in enumerate(top_entries, start=1):
             if user_id_username_map.get(int(user_id)):
@@ -239,12 +234,14 @@ def fetch_around_me(game_name: str, current_user: UserProfileResponse, db: Sessi
         return {"message": "User not ranked yet."}
 
     start = max(0, my_rank - 2)
-    shortage = 2 - (my_rank - start)
-    end = my_rank + 2 + shortage
-
-    if end > last_rank:
-        end = last_rank
-        start = max(0, end - 4)
+    end = min(last_rank, my_rank + 2)
+    while (end - start + 1) < min(5, last_rank + 1):
+        if start > 0:
+            start -= 1
+        elif end < last_rank:
+            end += 1
+        else:
+            break
 
     try:
         entries = redis_client.zrevrange(redis_key, start, end, withscores=True)
