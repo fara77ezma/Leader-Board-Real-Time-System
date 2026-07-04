@@ -1,9 +1,14 @@
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from controllers import auth
-from fastapi import APIRouter, Depends, status, Request
+from fastapi import APIRouter, Depends, status
 from config.db import get_db
 from sqlalchemy.orm import Session
-from models.request import LoginRequest, RefreshTokenRequest, RegisterRequest
+from models.request import (
+    LoginRequest,
+    RefreshTokenRequest,
+    RegisterRequest,
+    ResetPasswordRequest,
+)
 from models.response import RegisterResponse
 from fastapi_limiter.depends import RateLimiter
 
@@ -74,11 +79,12 @@ async def forgot_password(
     dependencies=[Depends(RateLimiter(times=5, seconds=60))],
 )
 def reset_password(
-    code: str,
-    new_password: str,
+    request: ResetPasswordRequest,
     db: Session = Depends(get_db),
 ):
-    return auth.reset_password(code, new_password, db)
+    return auth.reset_password(
+        code=request.code, new_password=request.new_password, db=db
+    )
 
 
 @router.post("/logout")

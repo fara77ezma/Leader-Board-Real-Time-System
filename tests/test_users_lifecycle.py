@@ -70,14 +70,17 @@ class TestDeactivateUserAccount:
         mock_user = Mock()
         mock_user.id = 1
         mock_user.is_active = True
+        game1 = Mock()
+        game1.name = "game1"
+        game2 = Mock()
+        game2.name = "game2"
+        game3 = Mock()
+        game3.name = "game3"
+
         db_session.query.return_value.filter.return_value.first.return_value = mock_user
 
         mock_redis = Mock()
-        mock_redis.keys.return_value = [
-            "leaderboard:game1",
-            "leaderboard:game2",
-            "leaderboard:game3",
-        ]
+        db_session.query.return_value.all.return_value = [game1, game2, game3]
         mocker.patch("controllers.users.redis_client", mock_redis)
 
         current_user = UserProfileResponse(
@@ -93,7 +96,6 @@ class TestDeactivateUserAccount:
 
         # Verify zrem called for each leaderboard
         assert mock_redis.zrem.call_count >= 3
-        mock_redis.keys.assert_called_once_with("leaderboard:*")
 
     @pytest.mark.asyncio
     async def test_deactivation_db_error_rolls_back(self, db_session, mocker):
@@ -263,7 +265,11 @@ class TestDeleteUserAccount:
         db_session.query.return_value.filter.return_value.first.return_value = mock_user
 
         mock_redis = Mock()
-        mock_redis.keys.return_value = ["leaderboard:game1", "leaderboard:game2"]
+        game1 = Mock()
+        game1.name = "game1"
+        game2 = Mock()
+        game2.name = "game1"
+        db_session.query.return_value.all.return_value = [game1, game2]
         mocker.patch("controllers.users.redis_client", mock_redis)
 
         current_user = UserProfileResponse(

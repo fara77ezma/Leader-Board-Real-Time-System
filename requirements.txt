@@ -1,4 +1,4 @@
-fastapi
+fastapi==0.115.0
 uvicorn[standard]
 requests
 passlib[bcrypt]==1.7.4
@@ -16,7 +16,7 @@ fastapi-limiter==0.1.5
 fastapi-mail
 cloudinary
 python-multipart
-pyrate-limiter==2.10.0
+pyrate-limiter
 pytest
 pytest-asyncio
 apscheduler

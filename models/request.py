@@ -52,6 +52,16 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class ReactivateAccountRequest(BaseModel):
+    email: str
+    password: str
+
+
+class ResetPasswordRequest(BaseModel):
+    code: str
+    new_password: str
+
+
 class SubmitScoreRequest(BaseModel):
     game_name: str
     score: int

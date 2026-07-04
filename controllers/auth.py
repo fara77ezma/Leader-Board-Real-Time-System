@@ -1,7 +1,7 @@
 import secrets
 import os
 import uuid
-from sqlite3 import IntegrityError
+from sqlalchemy.exc import IntegrityError
 from controllers import users
 from fastapi import status, HTTPException
 from models.request import LoginRequest, RegisterRequest
@@ -46,15 +46,10 @@ async def register_user(request: RegisterRequest, db: Session) -> RegisterRespon
     )
     # If any of them exist, raise a conflict error
     if existing_user:
-        if (
-            existing_user.email == email
-            or existing_user.username == username
-            or existing_user.phone_number == phone_number
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="An account with this credentials already exists",
-            )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this credentials already exists",
+        )
 
     verification_code = secrets.token_urlsafe(32)
     verification_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
@@ -332,15 +327,10 @@ async def resend_verification(email: str, db: Session) -> dict:
 async def forgot_password(email: str, db: Session) -> dict:
     user = db.query(User).filter(User.email == email.lower().strip()).first()
     if not user or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No account found with this email.",
-        )
-    if not user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email is not verified. Please verify your email first.",
-        )
+        return {
+            "message": "If an account exists with this email, a reset link has been sent."
+        }
+
     # Here you would generate a password reset token and send it via email
     verification_code = secrets.token_urlsafe(32)
     user.password_reset_code = verification_code
@@ -361,7 +351,9 @@ async def forgot_password(email: str, db: Session) -> dict:
         subject="Password Reset Request",
         url_path="reset-password",
     )
-    return {"message": "Password reset email sent successfully."}
+    return {
+        "message": "If an account exists with this email, a reset link has been sent."
+    }
 
 
 def generate_password_reset_email_content(username: str, verification_url: str) -> str:
@@ -397,6 +389,7 @@ def reset_password(code: str, new_password: str, db: Session) -> dict:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Password reset code has expired.",
         )
+
     RegisterRequest.validate_password(new_password)
 
     user.password_hash = hash_password(new_password)
@@ -420,7 +413,7 @@ def reset_password(code: str, new_password: str, db: Session) -> dict:
 
 async def require_admin(credentials, db):
     current_user = await users.get_current_user(credentials=credentials, db=db)
-    if not current_user.is_admin:
+    if not current_user or not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin privileges required.",

@@ -11,7 +11,7 @@ class TestSubmitScore:
         self, db_session, make_submit_request, make_current_user
     ):
         db_session.query.return_value.filter.return_value.first.return_value = None
-        with pytest.raises(Exception):
+        with pytest.raises(HTTPException):
             result = await submit_score(
                 make_submit_request(), make_current_user(), db_session
             )
@@ -105,7 +105,7 @@ class TestSubmitScore:
             mock_leaderboard_user
         )
         db_session.commit.side_effect = Exception("DB error")
-        with pytest.raises(Exception):
+        with pytest.raises(HTTPException):
             result = await submit_score(
                 make_submit_request(), make_current_user(), db_session
             )
@@ -122,12 +122,14 @@ class TestSubmitScore:
         make_submit_request,
         make_current_user,
     ):
-        db_session.query.return_value.filter.return_value.first.return_value = (
-            mock_leaderboard_user
-        )
+        db_session.query.return_value.filter.return_value.first.side_effect = [
+            mock_leaderboard_user,
+            [],
+        ]
+
         mock_redis = mocker.patch("controllers.leaderboard.redis_client")
         mock_redis.zscore.side_effect = Exception("Redis down")
-        with pytest.raises(Exception):
+        with pytest.raises(HTTPException):
             result = await submit_score(
                 make_submit_request(), make_current_user(), db_session
             )
@@ -153,9 +155,9 @@ class TestFetchLeaderboard:
         mock_user_2.username = "bob"
 
         # First call returns entries, second call returns users
-        db_session.query.return_value.filter.return_value.all.side_effect = [
-            [mock_entry],  # first call — LeaderboardEntry
-            [mock_user_1, mock_user_2],  # second call — Users
+        db_session.query.return_value.filter.return_value.all.return_value = [
+            mock_user_1,
+            mock_user_2,
         ]
 
         result = fetch_leaderboard("game_001", limit=10, db=db_session)
@@ -203,10 +205,9 @@ class TestFetchLeaderboard:
         mock_user.username = "alice"
 
         # Second query returns only alice — user 999 not in DB
-        db_session.query.return_value.filter.return_value.all.side_effect = [
-            [mock_entry],
-            [mock_user],  # only alice, no user with id 999
-        ]
+        db_session.query.return_value.filter.return_value.all.return_value = [
+            mock_user
+        ]  # only alice, no user with id 999
 
         result = fetch_leaderboard("game_001", limit=10, db=db_session)
 

@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, Request, UploadFile
-from controllers import auth, users
+from fastapi import APIRouter, Depends, UploadFile
+from controllers import users
 from config.db import get_db
+from models.request import ReactivateAccountRequest
 from models.response import DifferentUserProfileResponse, UserProfileResponse
 from sqlalchemy.orm import Session
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi_limiter.depends import RateLimiter
-
 
 security = HTTPBearer()
 
@@ -57,11 +57,12 @@ async def deactivate_account(
     dependencies=[Depends(RateLimiter(times=5, seconds=60))],
 )
 def reactivate_account(
-    email: str,
-    password: str,
+    request: ReactivateAccountRequest,
     db: Session = Depends(get_db),
 ):
-    return users.reactivate_account(email, password, db)
+    return users.reactivate_account(
+        email=request.email, password=request.password, db=db
+    )
 
 
 @router.delete("/api/profile/avatar")

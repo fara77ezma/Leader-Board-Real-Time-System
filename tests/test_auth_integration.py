@@ -63,7 +63,7 @@ def test_full_auth_flow(client, get_user):
     )
     assert forgot_password_response.status_code == 200
     assert forgot_password_response.json() == {
-        "message": "Password reset email sent successfully."
+        "message": "If an account exists with this email, a reset link has been sent."
     }
 
     user = get_user("flowuser")
@@ -71,7 +71,7 @@ def test_full_auth_flow(client, get_user):
 
     reset_password_response = client.post(
         "/auth/reset-password",
-        params={
+        json={
             "code": user.password_reset_code,
             "new_password": "NewSecure@Pass456",
         },

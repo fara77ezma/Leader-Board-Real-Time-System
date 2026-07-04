@@ -4,9 +4,8 @@
 # Run tests
 test: 
     # run instead of up to avoid starting unnecessary services for testing + ensure clean state + remove volumes after + open as shell to debug if needed
-	docker-compose -f docker-compose.test.yml run --rm -it test-runner
 	docker-compose -f docker-compose.test.yml down -v
-
+	docker-compose -f docker-compose.test.yml run --rm -it test-runner
 # make test-one TARGET=test_successful_registration_returns_201
 test-one:
 # -k allows you to specify a substring to match test names, so you can run specific tests without running the entire suite 
