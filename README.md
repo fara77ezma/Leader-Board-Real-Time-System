@@ -99,30 +99,6 @@ PASSWORD_RESET_EXPIRY_MINUTES=30
 
 See the ERD diagram in [ARCHITECTURE.md](./ARCHITECTURE.md) for visual representation.
 
-### Core Tables
-
-**users**
-- Unique user identification with `user_code`
-- Email verification workflow
-- Password reset tokens
-- Admin role support
-- Avatar storage with Cloudinary
-
-**game**
-- Active/inactive game status
-- Game descriptions
-- Timestamps for auditing
-
-**leaderboard**
-- Score tracking per user per game
-- Foreign keys to users and games
-- Automatic ranking via queries
-
-**refresh_tokens**
-- Token-based session management
-- Revocation support
-- Expiration tracking
-
 ## 🧪 Testing
 
 Run the complete test suite:
@@ -143,6 +119,23 @@ pytest tests/test_auth.py::TestAuthEndpoint
 # Run with verbose output
 pytest -v
 ```
+
+### Testing with the Docker test environment
+
+The repository includes a dedicated test stack with isolated MySQL and Redis containers.
+
+```bash
+# Run the full Docker-based test suite
+make test
+
+# Run a single test by keyword
+make test-one TARGET=test_successful_registration_returns_201
+
+# Stop and remove the test containers and volumes
+docker-compose -f docker-compose.test.yml down -v
+```
+
+This uses [docker-compose.test.yml](docker-compose.test.yml) to start the test database, Redis, and the pytest runner in a containerized environment.
 
 ### Test Coverage
 - ✅ Authentication & authorization
