@@ -1,6 +1,8 @@
-# Real-time Leaderboard System
+# Real-Time Leaderboard System
 
-A modern, scalable backend system for managing real-time leaderboards with game management, user authentication, and WebSocket support. Built with FastAPI, Redis, and MySQL.
+A FastAPI backend for real-time game leaderboards. Built as a side project to go deeper on Docker, Redis, and WebSockets.
+
+Players register, submit scores, and see live-updating rankings pushed over WebSockets — backed by MySQL for durability and Redis sorted sets for fast ranked reads.
 
 ## 🎯 Features
 
@@ -11,58 +13,54 @@ A modern, scalable backend system for managing real-time leaderboards with game 
   - Admin role management
 
 - **Game Management**
-  - Create, read, update, delete games
-  - Activate/deactivate games
-  - Public game listing endpoint
+  - Create, activate, deactivate, and delete games
+  - Public active game listing endpoint
+  - Admin-only management endpoints
 
 - **Real-time Leaderboard**
-  - Real-time score updates via WebSockets
-  - Efficient score tracking with Redis caching
-  - Automatic ranking calculations
-  - Sorted leaderboard queries
+  - Live score updates pushed to clients via WebSockets
+  - Redis sorted sets for O(log n) rank queries
+  - "Around me" view — see players ranked near you
+  - Personal best tracking (only improves your rank on a new high score)
 
 - **Comprehensive Testing**
-  - Unit and integration tests
+  - Unit tests with mocked DB and Redis
+  - Integration tests against real MySQL and Redis in Docker
   - Test coverage reports
-  - Docker-based test environment
 
 ## 🛠️ Tech Stack
 
 - **Backend Framework:** FastAPI
-- **Database:** MySQL/PostgreSQL (SQLAlchemy ORM)
-- **Cache & Real-time:** Redis
-- **Authentication:** JWT, Bcrypt
+- **Database:** MySQL (SQLAlchemy ORM)
+- **Cache & Ranking:** Redis (sorted sets)
+- **Authentication:** JWT + Bcrypt
 - **Real-time Communication:** WebSockets
+- **Image Storage:** Cloudinary
 - **Task Scheduling:** APScheduler
-- **Testing:** Pytest, Docker Compose
-- **Containerization:** Docker
+- **Testing:** Pytest, pytest-mock
+- **Containerization:** Docker & Docker Compose
 
 ## 📋 Prerequisites
 
-- Python 3.9+
-- Docker & Docker Compose
-- MySQL or PostgreSQL
-- Redis
+- Docker & Docker Compose (everything else runs inside containers)
 
-## 🚀 Installation & Setup
-
-### Using Docker Compose
+## 🚀 Quick Start
 
 ```bash
 # Clone the repository
 git clone <repository-url>
 cd realtime-leaderboard-project
 
-# Run with Docker
-docker-compose up
+# Start all services
+make dev
 
-# Application runs on http://localhost:8000
+# Application runs on http://localhost:5000
 ```
+
 ## 📚 API Documentation
 
-Once the server is running, access the interactive API documentation:
-- **Swagger UI:** http://localhost:8000/docs
-- **ReDoc:** http://localhost:8000/redoc
+Once the server is running:
+- **Swagger UI:** http://localhost:5000/docs
 
 ## 🔧 Configuration
 
@@ -73,163 +71,124 @@ Create a `.env` file in the project root:
 DATABASE_URL=mysql+pymysql://user:password@localhost:3306/leaderboard_db
 
 # Redis
-REDIS_URL=redis://localhost:6379
+REDIS_HOST=localhost
+REDIS_PORT=6379
 
-# Email Configuration
-MAIL_USERNAME=your-email@gmail.com
-MAIL_PASSWORD=your-app-password
-MAIL_FROM=your-email@gmail.com
+# JWT
+SECRET_KEY=your-secret-key-here
+ALGORITHM=HS256
 
-# JWT Configuration
-JWT_SECRET_KEY=your-secret-key-here
-JWT_ALGORITHM=HS256
-JWT_EXPIRATION_HOURS=1
-JWT_REFRESH_EXPIRATION_DAYS=7
+# Email (Mailtrap)
+MAIL_USERNAME=your-mailtrap-username
+MAIL_PASSWORD=your-mailtrap-password
+MAIL_FROM=noreply@yourapp.com
 
-# Cloudinary (for image uploads)
+# Cloudinary
 CLOUDINARY_CLOUD_NAME=your-cloud-name
 CLOUDINARY_API_KEY=your-api-key
 CLOUDINARY_API_SECRET=your-api-secret
-
-# Verification Code Expiry
-EMAIL_VERIFICATION_EXPIRY_MINUTES=15
-PASSWORD_RESET_EXPIRY_MINUTES=30
 ```
+
 ## 📊 Database Schema
 
-See the ERD diagram in [ARCHITECTURE.md](./ARCHITECTURE.md) for visual representation.
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full ERD and system diagrams.
 
 ## 🧪 Testing
 
-Run the complete test suite:
-
 ```bash
-# Run all tests
-pytest
-
-# Run with coverage report
-pytest --cov=. --cov-report=html
-
-# Run specific test file
-pytest tests/test_auth.py
-
-# Run specific test class
-pytest tests/test_auth.py::TestAuthEndpoint
-
-# Run with verbose output
-pytest -v
-```
-
-### Testing with the Docker test environment
-
-The repository includes a dedicated test stack with isolated MySQL and Redis containers.
-
-```bash
-# Run the full Docker-based test suite
+# Run the full test suite
 make test
 
-# Run a single test by keyword
-make test-one TARGET=test_successful_registration_returns_201
+# Run a single test by name
+make test-one TARGET=test_successful_registration
 
-# Stop and remove the test containers and volumes
-docker-compose -f docker-compose.test.yml down -v
+# Stop and clean up test containers
+make clean
 ```
 
-This uses [docker-compose.test.yml](docker-compose.test.yml) to start the test database, Redis, and the pytest runner in a containerized environment.
-
-### Test Coverage
-- ✅ Authentication & authorization
-- ✅ User lifecycle management
+### What's covered
+- ✅ Authentication & authorization flows
+- ✅ User lifecycle (register, verify, deactivate, reactivate, delete)
 - ✅ Game CRUD operations
-- ✅ Real-time leaderboard updates
-- ✅ WebSocket connections
-- ✅ Error handling & edge cases
+- ✅ Leaderboard submission and ranking
+- ✅ WebSocket connection and disconnect handling
+- ✅ Error handling and edge cases
 
 ## 🔐 Security Features
 
-- **Password Security:** Bcrypt hashing with salt
-- **Authentication:** JWT with expiring tokens and refresh mechanism
-- **Email Verification:** Time-limited verification codes
-- **Rate Limiting:** Per-endpoint request throttling
-- **Admin Verification:** Role-based access control
-- **Input Validation:** Pydantic models with strict validation
+- **Password hashing:** Bcrypt with 12 rounds
+- **Tokens:** JWT access tokens + refresh tokens (revoked on password reset)
+- **Email verification:** Time-limited codes
+- **Rate limiting:** Per-endpoint request throttling via fastapi-limiter
+- **Admin guards:** Role-based access control on all management endpoints
+- **Input validation:** Pydantic models with strict field-level validation
 
-## 📈 Performance Features
+## 📈 Performance Decisions
 
-- **Redis Caching:** Fast leaderboard queries
-- **Connection Pooling:** Efficient database connections
-- **Async Operations:** Non-blocking I/O for WebSockets
-- **Task Scheduling:** Automatic cleanup of expired tokens
-- **Pagination:** Efficient large dataset handling
+- **Redis sorted sets** — rank queries and top-N lookups are O(log n) instead of a full SQL sort
+- **Personal best tracking** — Redis is only updated when a user beats their previous high score, reducing unnecessary writes
+- **Connection pooling** — SQLAlchemy pool with `pool_pre_ping` and `pool_recycle` to handle MySQL idle timeouts
+- **Async Redis client** — separate async client for the WebSocket broadcast path to avoid blocking
 
 ## 🚦 Health Check
 
-Monitor system health:
-
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:5000/health
 ```
 
-Returns status of:
-- Application
-- Database connection
-- Redis (sync client)
-- Redis (async client)
+Returns status of the app, MySQL connection, sync Redis client, and async Redis client independently.
 
 ## 🐳 Docker Commands
 
 ```bash
-# Build images
-docker-compose build
-
-# Start services in background
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Run tests in Docker
-docker-compose -f docker-compose.test.yml up
-
-# Stop services
-docker-compose down
-
-# Remove all data and volumes
-docker-compose down -v
+make dev        # Start all services in background
+make test       # Run full test suite in Docker
+make test-one TARGET=test_name  # Run a single test
+make clean      # Stop and remove all containers and volumes
+make build      # Rebuild images with no cache
 ```
 
 ## 📝 API Endpoints
 
 ### Authentication
-- `POST /auth/register` - Register new user
-- `POST /auth/login` - Login user
-- `POST /auth/refresh-token` - Refresh JWT token
-- `GET /auth/verify-email` - Verify email with code
-- `POST /auth/request-password-reset` - Request password reset
-- `POST /auth/reset-password` - Reset password with code
+- `POST /auth/register` — Register new user
+- `POST /auth/login` — Login
+- `POST /auth/refresh-token` — Refresh JWT token
+- `GET /auth/verify-email?code=xxx` — Verify email
+- `POST /auth/forgot-password` — Request password reset
+- `POST /auth/reset-password` — Reset password with code
+- `POST /auth/logout` — Revoke refresh token
+- `POST /auth/resend-verification` — Resend verification email
 
 ### Users
-- `GET /users/me` - Get current user profile
-- `GET /users/{username}` - Get user by username
-- `PATCH /users/{username}/avatar` - Upload avatar
-- `GET /users/` - List all users (admin only)
+- `GET /users/profile` — Get current user profile
+- `GET /users/profile/{username}` — Get another user's public profile
+- `PUT /users/profile` — Upload avatar
+- `DELETE /users/profile/avatar` — Remove avatar
+- `PUT /users/profile/deactivate` — Deactivate account
+- `POST /users/reactivate-account` — Reactivate account
+- `DELETE /users/profile` — Delete account permanently
 
 ### Games
-- `POST /game/` - Create game (admin only)
-- `GET /game/` - Get all games (admin only)
-- `GET /game/list` - Get active games (public)
-- `PATCH /game/activate/{name}` - Activate game
-- `PATCH /game/deactivate/{name}` - Deactivate game
-- `DELETE /game/{name}` - Delete game
+- `POST /game/` — Create game (admin only)
+- `GET /game/` — Get all games (admin only)
+- `GET /game/list` — Get active games (public)
+- `PATCH /game/activate/{game_name}` — Activate game (admin only)
+- `PATCH /game/deactivate/{game_name}` — Deactivate game (admin only)
+- `DELETE /game/{game_name}` — Delete game (admin only)
 
 ### Leaderboard
-- `POST /leaderboard/score` - Submit score
-- `GET /leaderboard/{game_name}` - Get game leaderboard
-- `GET /leaderboard/{game_name}/{username}` - Get user rank
+- `POST /leaderboard/submit-score` — Submit score
+- `GET /leaderboard/get-leaderboard/{game_name}` — Get leaderboard
+- `GET /leaderboard/get-leaderboard/{game_name}/user-rank` — Get your rank
+- `GET /leaderboard/get-leaderboard/{game_name}/around-me` — Get players ranked near you
+- `POST /leaderboard/refresh-leaderboard/{game_name}` — Rebuild leaderboard from DB (admin only)
+- `POST /leaderboard/refresh-all-leaderboards` — Rebuild all leaderboards from DB (admin only)
+- `POST /leaderboard/refresh-user-scores/{user_id}` — Rebuild a user's scores in Redis (admin only)
 
 ### WebSocket
-- `WS /ws/{game_name}` - Real-time leaderboard updates
+- `WS /ws/{game_name}` — Connect for real-time leaderboard updates
 
 ## 👨‍💻 Author
 
-Built as a learning project to master Docker, Redis, and Python backend development.
+Built as a side project to go deeper on Docker, Redis, and real-time systems.

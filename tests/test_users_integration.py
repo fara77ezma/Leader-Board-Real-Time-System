@@ -14,7 +14,7 @@ def test_user_profile_and_avatar_flow(
     )
 
     profile_response = client.get(
-        "/users/api/profile",
+        "/users/profile",
         headers=user["headers"],
     )
     assert profile_response.status_code == 200
@@ -24,7 +24,7 @@ def test_user_profile_and_avatar_flow(
     assert profile_body["avatar_url"].startswith("https://ui-avatars.com/api/")
     assert profile_body["games"] == {}
 
-    public_profile_response = client.get("/users/api/profile/avataruser")
+    public_profile_response = client.get("/users/profile/avataruser")
     assert public_profile_response.status_code == 200
     assert public_profile_response.json()["username"] == "avataruser"
 
@@ -34,7 +34,7 @@ def test_user_profile_and_avatar_flow(
     )
 
     update_response = client.put(
-        "/users/api/profile",
+        "/users/profile",
         headers=user["headers"],
         files={"avatar_file": ("avatar.png", b"fake image bytes", "image/png")},
     )
@@ -44,7 +44,7 @@ def test_user_profile_and_avatar_flow(
     assert get_user("avataruser").avatar_url == "https://cdn.example.com/avataruser.png"
 
     updated_profile_response = client.get(
-        "/users/api/profile",
+        "/users/profile",
         headers=user["headers"],
     )
     assert updated_profile_response.status_code == 200
@@ -59,7 +59,7 @@ def test_user_profile_and_avatar_flow(
     )
 
     delete_response = client.delete(
-        "/users/api/profile/avatar",
+        "/users/profile/avatar",
         headers=user["headers"],
     )
     assert delete_response.status_code == 200

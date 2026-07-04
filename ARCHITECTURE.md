@@ -80,9 +80,11 @@ sequenceDiagram
     API-->>Client: Verification confirmed
     
     Client->>API: POST /auth/login
-    API->>DB: Query user + verify password
+    API->>DB: Query user + verify password hash
     DB-->>API: User found
     API-->>Client: JWT access token + Refresh token
+    
+    Note over Client,API: On subsequent requests, JWT is verified<br/>locally using the secret key — no DB lookup needed
 ```
 
 ### Score Submission & Real-time Update Flow
@@ -96,7 +98,7 @@ sequenceDiagram
     participant CM as ConnectionManager
     participant WS as Connected WebSocket Clients
     
-    Client->>API: POST /leaderboard/api/submit-score
+    Client->>API: POST /leaderboard/submit-score
     API->>DB: Insert score record (source of truth)
     DB-->>API: Score saved
     API->>Redis: ZADD leaderboard:{game} user_id score
@@ -141,7 +143,7 @@ graph LR
     User["👤 User"]
     Creds["🔑 Credentials"]
     Hash["🔐 Bcrypt Hash\n(12 rounds)"]
-    JWT["🎟️ JWT Access Token\n(1 hour)"]
+    JWT["🎟️ JWT Access Token\n(verified locally\nvia secret key)"]
     RT["🔄 Refresh Token\n(stored in MySQL)"]
     DB["🗄️ MySQL"]
     RL["🚦 Rate Limiter\n(Redis-backed)"]
@@ -152,9 +154,9 @@ graph LR
     Hash -->|if valid, issue| JWT
     Hash -->|if valid, issue| RT
     RT -->|stored & revoked in| DB
-    JWT -->|verified on each request| DB
+    JWT -->|verified on each request\nusing SECRET_KEY| JWT
     DB -->|check is_admin for admin routes| User
-    User -->|all auth endpoints| RL
+    User -->|auth endpoints| RL
 ```
 
 ## 🔄 WebSocket Architecture
@@ -175,4 +177,4 @@ Client C ──WS connect──▶ /ws/{game_name}
                     send_json to A, B, C
 ```
 
-The `ConnectionManager` is an in-memory dict mapping game names to lists of active WebSocket connections. When a new high score lands, the leaderboard controller fetches the updated top 10 from Redis and the manager broadcasts it directly to all connected clients for that game — no message broker or Pub/Sub involved.
+The `ConnectionManager` is an in-memory dict mapping game names to lists of active WebSocket connections. When a new high score lands, the leaderboard controller fetches the updated top 10 from Redis and the manager broadcasts it directly to all connected clients for that game.

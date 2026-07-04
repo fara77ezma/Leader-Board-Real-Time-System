@@ -16,7 +16,7 @@ router = APIRouter(
 )
 
 
-@router.get("/api/profile")
+@router.get("/profile")
 async def get_my_profile(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -25,7 +25,7 @@ async def get_my_profile(
     return await users.get_current_user(credentials=credentials, db=db)
 
 
-@router.get("/api/profile/{username}")
+@router.get("/profile/{username}")
 async def get_user_profile(
     username: str, db: Session = Depends(get_db)
 ) -> DifferentUserProfileResponse:
@@ -33,7 +33,7 @@ async def get_user_profile(
     return await users.get_user_profile(username=username, db=db)
 
 
-@router.put("/api/profile")
+@router.put("/profile")
 async def update_avatar(
     avatar_file: UploadFile,
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -43,7 +43,7 @@ async def update_avatar(
     return await users.update_user_avatar(db, current_user, avatar_file)
 
 
-@router.put("/api/profile/deactivate")
+@router.put("/profile/deactivate")
 async def deactivate_account(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -65,7 +65,7 @@ def reactivate_account(
     )
 
 
-@router.delete("/api/profile/avatar")
+@router.delete("/profile/avatar")
 async def delete_avatar(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -74,7 +74,7 @@ async def delete_avatar(
     return await users.remove_user_avatar(db, current_user)
 
 
-@router.delete("/api/profile")
+@router.delete("/profile")
 async def delete_account(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Depends(security),

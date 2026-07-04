@@ -48,7 +48,7 @@ def test_full_auth_flow(client, get_user):
     assert login_body["token"]
 
     profile_response = client.get(
-        "/users/api/profile",
+        "/users/profile",
         headers={"Authorization": f"Bearer {login_body['token']}"},
     )
     assert profile_response.status_code == 200
