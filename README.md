@@ -46,7 +46,7 @@ A modern, scalable backend system for managing real-time leaderboards with game 
 
 ## 🚀 Installation & Setup
 
-### Using Docker Compose (Recommended)
+### Using Docker Compose
 
 ```bash
 # Clone the repository
@@ -95,54 +95,6 @@ CLOUDINARY_API_SECRET=your-api-secret
 EMAIL_VERIFICATION_EXPIRY_MINUTES=15
 PASSWORD_RESET_EXPIRY_MINUTES=30
 ```
-
-## 🏗️ Project Structure
-
-```
-realtime-leaderboard-project/
-├── app.py                      # Main FastAPI application
-├── requirements.txt            # Python dependencies
-├── Dockerfile                  # Production container
-├── docker-compose.yml          # Docker services (app, DB, Redis)
-├── Makefile                    # Common commands
-│
-├── config/                     # Configuration modules
-│   ├── db.py                   # Database connection & session
-│   ├── redis.py                # Redis client setup
-│   ├── mail.py                 # Email configuration
-│   ├── websocket.py            # WebSocket configuration
-│   └── cloudinary.py           # Image upload configuration
-│
-├── models/                     # Data models
-│   ├── tables.py               # SQLAlchemy ORM models
-│   ├── request.py              # Pydantic request schemas
-│   └── response.py             # Pydantic response schemas
-│
-├── routes/                     # API route handlers
-│   ├── auth.py                 # Authentication endpoints
-│   ├── users.py                # User management endpoints
-│   ├── game.py                 # Game management endpoints
-│   ├── leaderboard.py          # Leaderboard endpoints
-│   └── websocket.py            # WebSocket endpoints
-│
-├── controllers/                # Business logic
-│   ├── auth.py                 # Authentication logic
-│   ├── users.py                # User operations
-│   ├── game.py                 # Game operations
-│   ├── leaderboard.py          # Leaderboard logic
-│   └── websocket.py            # WebSocket handlers
-│
-├── tests/                      # Test suite
-│   ├── conftest.py             # Pytest fixtures & configuration
-│   ├── test_auth.py            # Authentication tests
-│   ├── test_users.py           # User tests
-│   ├── test_game.py            # Game tests
-│   ├── test_leaderboard.py     # Leaderboard tests
-│   └── test_websocket.py       # WebSocket tests
-│
-└── htmlcov/                    # Code coverage reports
-```
-
 ## 📊 Database Schema
 
 See the ERD diagram in [ARCHITECTURE.md](./ARCHITECTURE.md) for visual representation.
