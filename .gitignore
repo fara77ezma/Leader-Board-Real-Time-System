@@ -7,3 +7,4 @@ queries.txt
 token_script.py
 redis_functions.txt
 .coverage
+.pre-commit-config.yaml
