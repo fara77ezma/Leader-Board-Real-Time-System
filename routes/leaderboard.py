@@ -13,7 +13,7 @@ router = APIRouter(
 )
 
 
-@router.post("/api/submit-score")
+@router.post("/submit-score")
 async def submit_new_score(
     request: SubmitScoreRequest,
     db: Session = Depends(get_db),
@@ -25,12 +25,12 @@ async def submit_new_score(
     )
 
 
-@router.get("/api/get-leaderboard/{game_name}")
+@router.get("/get-leaderboard/{game_name}")
 def get_leaderboard(game_name: str, db: Session = Depends(get_db), limit: int = 10):
     return leaderboard.fetch_leaderboard(game_name=game_name, limit=limit, db=db)
 
 
-@router.get("/api/get-leaderboard/{game_name}/user-rank")
+@router.get("/get-leaderboard/{game_name}/user-rank")
 async def get_user_rank(
     game_name: str,
     db: Session = Depends(get_db),
@@ -40,7 +40,7 @@ async def get_user_rank(
     return leaderboard.fetch_user_rank(game_name=game_name, current_user=current_user)
 
 
-@router.post("/api/refresh-leaderboard/{game_name}")
+@router.post("/refresh-leaderboard/{game_name}")
 async def refresh_leaderboard(
     game_name: str,
     db: Session = Depends(get_db),
@@ -50,7 +50,7 @@ async def refresh_leaderboard(
     return leaderboard.refresh_redis_leaderboard(game_name=game_name, db=db)
 
 
-@router.post("/api/refresh-all-leaderboards")
+@router.post("/refresh-all-leaderboards")
 async def refresh_all_leaderboards(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -60,7 +60,7 @@ async def refresh_all_leaderboards(
     return leaderboard.refresh_all_leaderboards(db=db)
 
 
-@router.post("/api/refresh-user-scores/{user_id}")
+@router.post("/refresh-user-scores/{user_id}")
 async def refresh_user_scores(
     user_id: int,
     game_name: str | None = None,
@@ -74,7 +74,7 @@ async def refresh_user_scores(
     )
 
 
-@router.get("/api/get-leaderboard/{game_name}/around-me")
+@router.get("/get-leaderboard/{game_name}/around-me")
 async def get_around_me(
     game_name: str,
     db: Session = Depends(get_db),

@@ -1,6 +1,6 @@
 # System Architecture
 
-This document outlines the system architecture of the Real-time Leaderboard project.
+This document outlines the system architecture of the Real-Time Leaderboard project.
 
 ## 🗄️ Entity Relationship Diagram (ERD)
 
@@ -65,23 +65,26 @@ erDiagram
 sequenceDiagram
     participant Client
     participant API as FastAPI
-    participant DB as Database
+    participant DB as MySQL
     participant Mail as Email Service
     
     Client->>API: POST /auth/register
     API->>DB: Save user + generate verification code
     DB-->>API: User created
     API->>Mail: Send verification email
-    Mail-->>Client: Email sent
+    Mail-->>Client: Email delivered
     
     Client->>API: GET /auth/verify-email?code=xxx
     API->>DB: Verify code & mark user verified
     DB-->>API: User verified
+    API-->>Client: Verification confirmed
     
     Client->>API: POST /auth/login
-    API->>DB: Query user + verify password
+    API->>DB: Query user + verify password hash
     DB-->>API: User found
-    API-->>Client: JWT token + Refresh token
+    API-->>Client: JWT access token + Refresh token
+    
+    Note over Client,API: On subsequent requests, JWT is verified<br/>locally using the secret key — no DB lookup needed
 ```
 
 ### Score Submission & Real-time Update Flow
@@ -90,57 +93,88 @@ sequenceDiagram
 sequenceDiagram
     participant Client
     participant API as FastAPI
-    participant Redis as Redis Cache
-    participant DB as Database
-    participant WS as WebSocket Server
+    participant DB as MySQL
+    participant Redis as Redis
+    participant CM as ConnectionManager
+    participant WS as Connected WebSocket Clients
     
-    Client->>API: POST /leaderboard/score
-    API->>DB: Insert score record
+    Client->>API: POST /leaderboard/submit-score
+    API->>DB: Insert score record (source of truth)
     DB-->>API: Score saved
-    API->>Redis: Update cached leaderboard
-    Redis-->>API: Cache updated
-    API->>WS: Publish score update
-    WS->>Redis: Pub/Sub event
-    WS-->>Client: Broadcast to all connected clients
-    
-    Client->>API: GET /leaderboard/game_name
-    API->>Redis: Query cached leaderboard
-    Redis-->>API: Return top scores
-    API-->>Client: Leaderboard data
+    API->>Redis: ZADD leaderboard:{game} user_id score
+    Note over Redis: Only updated if new score beats personal best
+    Redis-->>API: Sorted set updated
+    API->>CM: Fetch updated top-10
+    CM->>Redis: ZREVRANGE leaderboard:{game} 0 9
+    Redis-->>CM: Top 10 entries
+    CM->>WS: send_json to all active connections for this game
+    API-->>Client: Score accepted + current rank
 ```
 
 ## 🏗️ Layered Architecture
 
 ```
-┌─────────────────────────────────────┐
-│      🖥️  PRESENTATION LAYER         │
-│   (FastAPI Routes & Endpoints)      │
-├─────────────────────────────────────┤
-│      🎮 APPLICATION LAYER           │
-│   (Controllers & Business Logic)    │
-├─────────────────────────────────────┤
-│      📦 DOMAIN LAYER                │
-│   (Models & Data Transfer Objects)  │
-├─────────────────────────────────────┤
-│      💾 PERSISTENCE LAYER           │
-│  (Database & Cache Operations)      │
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│              PRESENTATION LAYER                      │
+│   routes/auth.py  routes/game.py  routes/users.py   │
+│   routes/leaderboard.py  routes/websocket.py        │
+├─────────────────────────────────────────────────────┤
+│              APPLICATION LAYER                       │
+│  controllers/auth.py  controllers/game.py           │
+│  controllers/users.py  controllers/leaderboard.py   │
+│  controllers/websocket.py                           │
+├─────────────────────────────────────────────────────┤
+│              DOMAIN LAYER                            │
+│  models/tables.py (SQLAlchemy ORM models)           │
+│  models/request.py  models/response.py (Pydantic)   │
+├─────────────────────────────────────────────────────┤
+│              INFRASTRUCTURE LAYER                    │
+│  config/db.py (MySQL + connection pool)             │
+│  config/redis.py (sync + async Redis clients)       │
+│  config/websocket.py (ConnectionManager)            │
+│  config/cloudinary.py  config/mail.py              │
+└─────────────────────────────────────────────────────┘
 ```
+
 ## 🔐 Security Architecture
 
 ```mermaid
 graph LR
     User["👤 User"]
     Creds["🔑 Credentials"]
-    Hash["🔐 Bcrypt Hash"]
-    JWT["🎟️ JWT Token"]
-    Redis["📕 Token Cache"]
-    DB["🗄️ Database"]
-    
-    User -->|username/password| Creds
-    Creds -->|hash & compare| Hash
-    Hash -->|if valid| JWT
-    JWT -->|store for revocation| Redis
-    JWT -->|verify| DB
-    DB -->|check is_admin| User
+    Hash["🔐 Bcrypt Hash\n(12 rounds)"]
+    JWT["🎟️ JWT Access Token\n(verified locally\nvia secret key)"]
+    RT["🔄 Refresh Token\n(stored in MySQL)"]
+    DB["🗄️ MySQL"]
+    RL["🚦 Rate Limiter\n(Redis-backed)"]
+
+    User -->|username + password| Creds
+    Creds -->|verify against| Hash
+    Hash -->|stored in| DB
+    Hash -->|if valid, issue| JWT
+    Hash -->|if valid, issue| RT
+    RT -->|stored & revoked in| DB
+    JWT -->|verified on each request\nusing SECRET_KEY| JWT
+    DB -->|check is_admin for admin routes| User
+    User -->|auth endpoints| RL
 ```
+
+## 🔄 WebSocket Architecture
+
+```
+Client A ──WS connect──▶ /ws/{game_name}
+Client B ──WS connect──▶ /ws/{game_name}
+Client C ──WS connect──▶ /ws/{game_name}
+                              │
+                              ▼
+                    ConnectionManager
+                  { game_name: [A, B, C] }
+                              │
+                   on new high score:
+                              │
+                    Redis ZREVRANGE ──▶ top 10
+                              │
+                    send_json to A, B, C
+```
+
+The `ConnectionManager` is an in-memory dict mapping game names to lists of active WebSocket connections. When a new high score lands, the leaderboard controller fetches the updated top 10 from Redis and the manager broadcasts it directly to all connected clients for that game.
